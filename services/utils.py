@@ -10,14 +10,27 @@ def is_digit(string: str) -> bool:
 
 
 def get_data_keys(data: dict) -> dict:
-    fields = {}
+    devices = {}
 
     for key in data:
-        if data[key]['uName'] not in fields.keys():
-            fields[data[key]['uName']] = []
+        name = data[key]['uName']
+        date = data[key]['Date']
+        serial = data[key]['serial']
+        fields = data[key]['data']
 
-        for field in data[key]['data'].keys():
-            if (field not in fields[data[key]['uName']] and is_digit(data[key]['data'][field])
-                    and field != "system_Serial"):
-                fields[data[key]['uName']].append(field)
-    return fields
+        if name not in devices.keys():
+            devices[name] = {}
+
+        if serial not in devices[name].keys():
+            devices[name][serial] = {}
+
+        if 'period' not in devices[name][serial].keys():
+            devices[name][serial]['period'] = []
+        devices[name][serial]['period'].append(date)
+
+        for field in fields.keys():
+            if field not in devices[name][serial].keys():
+                devices[name][serial][field] = []
+            devices[name][serial][field].append(fields[field])
+
+    return devices

@@ -18,7 +18,7 @@ class App:
         self.open_file_button = ttk.Button(master=self.toolbar, text='Открыть файл', command=self.open_json_file)
         self.open_file_button.grid(row=0, column=0)
 
-        self.filename_label = ttk.Label(self.toolbar, background='gray')
+        self.filename_label = ttk.Label(self.toolbar, background='gray', foreground='white')
         self.filename_label.grid(row=0, column=1)
 
         self.choose_device_combobox = ttk.Combobox(self.toolbar, state='readonly')
@@ -40,7 +40,7 @@ class App:
         self.root.configure(bg='gray')
 
     def create_toolbar(self):
-        self.toolbar = Frame(self.root, bg='gray', relief=SOLID, borderwidth=1)
+        self.toolbar = Frame(self.root, bg='black', relief=SOLID, borderwidth=1)
         for c in range(3):
             self.toolbar.columnconfigure(index=c, weight=1)
         for r in range(3):
@@ -74,7 +74,7 @@ class App:
         with open(filename, encoding='UTF-8') as f:
             data = json.load(f)
 
-        devices_dict = get_data_keys(data)
+        devices_dict = get_data_keys(data)   # переделать !!!
         devices_list = list(devices_dict.keys())
         devices_var = StringVar(value=devices_list[0])
 
