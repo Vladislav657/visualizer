@@ -9,7 +9,7 @@ def is_digit(string: str) -> bool:
             return False
 
 
-def get_data_keys(data: dict) -> dict:
+def get_json_data(data: dict) -> dict:
     devices = {}
 
     for key in data:
@@ -21,16 +21,29 @@ def get_data_keys(data: dict) -> dict:
         if name not in devices.keys():
             devices[name] = {}
 
-        if serial not in devices[name].keys():
-            devices[name][serial] = {}
+        if 'fields' not in devices[name].keys():
+            devices[name]['fields'] = []
 
-        if 'period' not in devices[name][serial].keys():
-            devices[name][serial]['period'] = []
-        devices[name][serial]['period'].append(date)
+        if 'serials' not in devices[name].keys():
+            devices[name]['serials'] = {}
+
+        if serial not in devices[name]['serials'].keys():
+            devices[name]['serials'][serial] = {}
+
+        if 'period' not in devices[name]['serials'][serial].keys():
+            devices[name]['serials'][serial]['period'] = []
+        devices[name]['serials'][serial]['period'].append(date)
+
+        if 'data' not in devices[name]['serials'][serial].keys():
+            devices[name]['serials'][serial]['data'] = {}
 
         for field in fields.keys():
-            if field not in devices[name][serial].keys():
-                devices[name][serial][field] = []
-            devices[name][serial][field].append(fields[field])
+            if not is_digit(fields[field]) or field == 'system_Serial':
+                continue
+            if field not in devices[name]['fields']:
+                devices[name]['fields'].append(field)
+            if field not in devices[name]['serials'][serial]['data'].keys():
+                devices[name]['serials'][serial]['data'][field] = []
+            devices[name]['serials'][serial]['data'][field].append(float(fields[field]))
 
     return devices

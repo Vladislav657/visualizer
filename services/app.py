@@ -4,7 +4,7 @@ from tkinter.filedialog import askopenfilename
 from tkinter import *
 from tkinter import ttk
 
-from .utils import get_data_keys
+from .utils import get_json_data
 
 
 class App:
@@ -50,12 +50,11 @@ class App:
     def create_choose_device_combobox(self, devices_dict, devices_list, devices_var):
         def device_selected(event):
             self.fields_listbox.delete(0, END)
-            for device in devices_dict[devices_var.get()]:
-                self.fields_listbox.insert(END, device)
+            for field in devices_dict[devices_var.get()]['fields']:
+                self.fields_listbox.insert(END, field)
 
         self.choose_device_combobox.configure(textvariable=devices_var, values=devices_list)
         self.choose_device_combobox.bind("<<ComboboxSelected>>", device_selected)
-        self.choose_fields.grid(row=1, column=0)
 
     def create_fields_listbox(self, devices_dict, devices_var):
         def field_selected(event):
@@ -64,7 +63,7 @@ class App:
             msg = f"Вы выбрали: {selected_fields}"
             self.selection_label["text"] = msg
 
-        self.fields_listbox.configure(listvariable=Variable(value=devices_dict[devices_var.get()]))
+        self.fields_listbox.configure(listvariable=Variable(value=devices_dict[devices_var.get()]['fields']))
         self.fields_listbox.bind("<<ListboxSelect>>", field_selected)
 
     def open_json_file(self):
@@ -74,7 +73,7 @@ class App:
         with open(filename, encoding='UTF-8') as f:
             data = json.load(f)
 
-        devices_dict = get_data_keys(data)   # переделать !!!
+        devices_dict = get_json_data(data)
         devices_list = list(devices_dict.keys())
         devices_var = StringVar(value=devices_list[0])
 
