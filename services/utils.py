@@ -47,3 +47,27 @@ def get_json_data(data: dict) -> dict:
             devices[name]['serials'][serial]['data'][field].append(float(fields[field]))
 
     return devices
+
+
+def get_csv_data(data: list) -> dict:
+    fields = {}
+
+    if len(data) <= 2:
+        return fields
+
+    fields['device'] = data[0][1]
+
+    fields['period'] = []
+    for row in data[2:]:
+        fields['period'].append(row[0])
+
+    fields['fields'] = {}
+    for i in range(1, len(data[1])):
+        field = data[1][i]
+        if not is_digit(data[2][i]):
+            continue
+        if field not in fields['fields'].keys():
+            fields['fields'][field] = []
+        for row in data[2:]:
+            fields['fields'][field].append(row[i])
+    return fields
