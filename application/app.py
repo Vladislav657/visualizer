@@ -45,11 +45,13 @@ class App:
 
         self.choose_serials = Frame(self.toolbar, relief=SOLID)
         self.serials_label = ttk.Label(self.choose_serials, text="Серийные номера:")
-        self.serials_listbox = Listbox(self.choose_serials, selectmode=MULTIPLE)
+        self.serials_checkbutton = []
 
-        self.choose_fields = Frame(self.toolbar, relief=SOLID)
-        self.fields_label = ttk.Label(master=self.choose_fields, text="Поля для обработки:")
-        self.fields_listbox = Listbox(master=self.choose_fields, selectmode=MULTIPLE)
+        self.fields_listbox = Listbox(selectmode=MULTIPLE)
+
+        self.chosen_fields = Frame(self.toolbar, relief=SOLID)
+        self.fields_label = ttk.Label(master=self.chosen_fields, text="Поля для обработки:")
+        self.fields_list = []
 
         self.load_from_file_tools()
 
@@ -73,11 +75,14 @@ class App:
 
         self.choose_serials.grid_forget()
         self.serials_label.pack_forget()
-        self.serials_listbox.pack_forget()
+        for j in range(len(self.serials_checkbutton)):
+            self.serials_checkbutton[j][1].destroy()
+        self.serials_checkbutton.clear()
 
-        self.choose_fields.grid_forget()
+        self.fields_listbox.grid_forget()
+
+        self.chosen_fields.grid_forget()
         self.fields_label.pack_forget()
-        self.fields_listbox.pack_forget()
 
     def way_selected(self):
         if self.way.get() == 'file':
@@ -99,23 +104,34 @@ class App:
 
     def create_choose_device_combobox(self, dct, var):
         def device_selected(event):
-            self.serials_listbox.configure(listvariable=
-                                           Variable(value=sorted(list(dct[var.get()]['serials'].keys()))))
-            self.fields_listbox.configure(listvariable=Variable(value=dct[var.get()]['fields']))
+            self.configure_serials(dct, var)
+            self.fields_listbox.configure(listvariable=Variable(value=list(dct[var.get()]['fields'].keys())))
 
         self.choose_device_combobox.configure(textvariable=var, values=list(dct.keys()))
         self.choose_device_combobox.bind("<<ComboboxSelected>>", device_selected)
 
-    def create_serials_listbox(self, dct, var):
-        def serial_selected(event):
-            selected_indices = self.serials_listbox.curselection()
-            selected_serials = ",".join([self.serials_listbox.get(i) for i in selected_indices])
-            msg = f"Серийные номера: {selected_serials}"
-            self.serials_label["text"] = msg
+    def configure_serials(self, dct, var):
+        def serial_selected():
+            result = "Серийные номера: "
+            for k in range(len(self.serials_checkbutton)):
+                if self.serials_checkbutton[k][0].get() == 1:
+                    result = f"{result} {self.serials_checkbutton[k][1]['text']}"
+            self.serials_label.configure(text=result)
 
-        self.serials_listbox.configure(listvariable=
-                                       Variable(value=sorted(list(dct[var.get()]['serials'].keys()))))
-        self.serials_listbox.bind("<<ListboxSelect>>", serial_selected)
+        for j in range(len(self.serials_checkbutton)):
+            self.serials_checkbutton[j][1].destroy()
+
+        self.serials_checkbutton.clear()
+        self.serials_label.configure(text="Серийные номера:")
+
+        serials = sorted(list(dct[var.get()]['serials'].keys()))
+        for i in range(len(serials)):
+            serial_var = IntVar()
+            self.serials_checkbutton.append((serial_var, ttk.Checkbutton(master=self.choose_serials,
+                                                                         text=serials[i],
+                                                                         variable=serial_var,
+                                                                         command=serial_selected)))
+            self.serials_checkbutton[i][1].pack(anchor=NW, fill=X, padx=5, pady=5)
 
     def create_fields_listbox(self, dct, var=None):
         def field_selected(event):
@@ -129,6 +145,9 @@ class App:
         else:
             self.fields_listbox.configure(listvariable=Variable(value=dct[var.get()]['fields']))
         self.fields_listbox.bind("<<ListboxSelect>>", field_selected)
+
+    # def create_fields_list(self, dct, var):
+    #     for field in dct[var.get()]['fields']: продолжить !!!
 
     def open_file(self):
         if self.filetype_var.get() == 'JSON':
@@ -165,14 +184,14 @@ class App:
 
         self.choose_serials.grid(row=1, column=1)
         self.serials_label.pack(anchor=NW, fill=X, padx=5, pady=5)
-        self.serials_listbox.pack(anchor=NW, fill=X, padx=5, pady=5)
 
-        self.choose_fields.grid(row=1, column=2)
+        self.fields_listbox.grid(row=1, column=2)
+
+        self.chosen_fields.grid(row=1, column=3, columnspan=2)
         self.fields_label.pack(anchor=NW, fill=X, padx=5, pady=5)
-        self.fields_listbox.pack(anchor=NW, fill=X, padx=5, pady=5)
 
         self.create_choose_device_combobox(devices_dict, devices_var)
-        self.create_serials_listbox(devices_dict, devices_var)
+        self.configure_serials(devices_dict, devices_var)
         self.create_fields_listbox(devices_dict, devices_var)
 
     def open_csv_file(self):
@@ -192,7 +211,9 @@ class App:
 
         self.choose_serials.grid_forget()
         self.serials_label.pack_forget()
-        self.serials_listbox.pack_forget()
+        for j in range(len(self.serials_checkbutton)):
+            self.serials_checkbutton[j][1].destroy()
+        self.serials_checkbutton.clear()
 
         if (len(list(fields_dict.keys()))) == 0:
             showerror(title="Ошибка", message="Файл пуст")
@@ -201,9 +222,10 @@ class App:
         self.device_label.configure(text='Прибор (серийный номер): \n' + fields_dict['device'])
         self.device_label.grid(row=1, column=0)
 
-        self.choose_fields.grid(row=1, column=1)
+        self.fields_listbox.grid(row=1, column=1)
+
+        self.chosen_fields.grid(row=1, column=2, columnspan=2)
         self.fields_label.pack(anchor=NW, fill=X, padx=5, pady=5)
-        self.fields_listbox.pack(anchor=NW, fill=X, padx=5, pady=5)
 
         self.create_fields_listbox(fields_dict)
 
