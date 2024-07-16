@@ -6,7 +6,7 @@ from tkinter.filedialog import askopenfilename
 from tkinter import *
 from tkinter import ttk
 
-from .utils import get_json_data, get_csv_data
+from .utils import get_json_data, get_csv_data, get_min_max_date
 
 
 class App:
@@ -47,7 +47,7 @@ class App:
         self.serials_label = ttk.Label(self.choose_serials, text="Серийные номера:")
         self.serials_checkbutton = []
 
-        self.fields_listbox = Listbox(selectmode=MULTIPLE)
+        self.fields_listbox = Listbox(self.toolbar, selectmode=MULTIPLE)
 
         self.chosen_fields = Frame(self.toolbar, relief=SOLID)
         self.fields_label = ttk.Label(master=self.chosen_fields, text="Поля для обработки:")
@@ -83,6 +83,9 @@ class App:
 
         self.chosen_fields.grid_forget()
         self.fields_label.pack_forget()
+        for i in range(len(self.fields_list)):
+            for j in range(len(self.fields_list[i])):
+                self.fields_list[i][j].destroy()
 
     def way_selected(self):
         if self.way.get() == 'file':
@@ -105,18 +108,34 @@ class App:
     def create_choose_device_combobox(self, dct, var):
         def device_selected(event):
             self.configure_serials(dct, var)
-            self.fields_listbox.configure(listvariable=Variable(value=list(dct[var.get()]['fields'].keys())))
+            self.fields_listbox.configure(listvariable=Variable(value=list(dct[var.get()]['fields'])))
 
         self.choose_device_combobox.configure(textvariable=var, values=list(dct.keys()))
         self.choose_device_combobox.bind("<<ComboboxSelected>>", device_selected)
 
+    def is_serial_selected(self):
+        for k in range(len(self.serials_checkbutton)):
+            if self.serials_checkbutton[k][0].get() == 1:
+                return True
+        return False
+
     def configure_serials(self, dct, var):
         def serial_selected():
-            result = "Серийные номера: "
+            serials_list = []
             for k in range(len(self.serials_checkbutton)):
                 if self.serials_checkbutton[k][0].get() == 1:
-                    result = f"{result} {self.serials_checkbutton[k][1]['text']}"
-            self.serials_label.configure(text=result)
+                    serials_list.append(self.serials_checkbutton[k][1]['text'])
+            selected_indices = self.fields_listbox.curselection()
+            if self.is_serial_selected():
+                self.create_fields_list(dct[var.get()], get_min_max_date(self.filetype_var.get(), dct[var.get()],
+                                                                         serials_list))
+                if len(selected_indices) > 0:
+                    for f in selected_indices:
+                        self.fields_list[f][0].pack(anchor=NW, fill=X, padx=5, pady=5)
+            else:
+                self.fields_listbox.select_clear(0, END)
+                for f in range(len(self.fields_list)):
+                    self.fields_list[f][0].pack_forget()
 
         for j in range(len(self.serials_checkbutton)):
             self.serials_checkbutton[j][1].destroy()
@@ -136,9 +155,17 @@ class App:
     def create_fields_listbox(self, dct, var=None):
         def field_selected(event):
             selected_indices = self.fields_listbox.curselection()
-            selected_fields = ",".join([self.fields_listbox.get(i) for i in selected_indices])
-            msg = f"Поля для обработки: {selected_fields}"
-            self.fields_label["text"] = msg
+            if var is not None:
+                if not self.is_serial_selected():
+                    self.fields_listbox.select_clear(0, END)
+                    showerror(title="Ошибка", message="Выберите серийные номера")
+                    return None
+            if var is None:
+                self.create_fields_list(dct, get_min_max_date(self.filetype_var.get(), dct))
+            for i in range(len(self.fields_list)):
+                self.fields_list[i][0].pack_forget()
+            for i in selected_indices:
+                self.fields_list[i][0].pack(anchor=NW, fill=X, padx=5, pady=5)
 
         if var is None:
             self.fields_listbox.configure(listvariable=Variable(value=list(dct['fields'].keys())))
@@ -146,8 +173,38 @@ class App:
             self.fields_listbox.configure(listvariable=Variable(value=dct[var.get()]['fields']))
         self.fields_listbox.bind("<<ListboxSelect>>", field_selected)
 
-    # def create_fields_list(self, dct, var):
-    #     for field in dct[var.get()]['fields']: продолжить !!!
+    def create_fields_list(self, dct, dates):
+        average_list = ["как есть", "усреднить за час", "усреднить за 3 часа", "усреднить за сутки", "min за сутки",
+                        "max за сутки"]
+        graph_list = ["линейный", "столбчатый", "пока не решил"]
+        for i in range(len(self.fields_list)):
+            for j in range(len(self.fields_list[i])):
+                self.fields_list[i][j].destroy()
+
+        self.fields_list.clear()
+
+        for field in dct['fields']:
+            field_frame = Frame(self.chosen_fields)
+
+            label = ttk.Label(field_frame, text=field)
+            label.pack(side=LEFT, padx=5, pady=5)
+
+            from_button = ttk.Button(field_frame, text=dates[0])
+            from_button.pack(side=LEFT, padx=5, pady=5)
+
+            to = ttk.Label(field_frame, text='по')
+            to.pack(side=LEFT, padx=5, pady=5)
+
+            to_button = ttk.Button(field_frame, text=dates[1])
+            to_button.pack(side=LEFT, padx=5, pady=5)
+
+            average_combobox = ttk.Combobox(field_frame, values=average_list)
+            average_combobox.pack(side=LEFT, padx=5, pady=5)
+
+            graph_combobox = ttk.Combobox(field_frame, values=graph_list)
+            graph_combobox.pack(side=LEFT, padx=5, pady=5)
+
+            self.fields_list.append((field_frame, label, from_button, to_button, average_combobox, graph_combobox))
 
     def open_file(self):
         if self.filetype_var.get() == 'JSON':

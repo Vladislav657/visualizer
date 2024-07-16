@@ -71,3 +71,15 @@ def get_csv_data(data: list) -> dict:
         for row in data[2:]:
             fields['fields'][field].append(row[i])
     return fields
+
+
+def get_min_max_date(filetype: str, device: dict, serials: list = None) -> tuple:
+    min_dates = []
+    max_dates = []
+    if filetype == 'JSON':
+        for serial in serials:
+            min_dates.append(device['serials'][serial]['period'][0])
+            max_dates.append(device['serials'][serial]['period'][-1])
+        return min(min_dates), max(max_dates)
+    elif filetype == 'CSV':
+        return device['period'][0], device['period'][-1]
