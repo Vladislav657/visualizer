@@ -34,17 +34,17 @@ def get_json_data(data: dict) -> dict:
             devices[name]['serials'][serial]['period'] = []
         devices[name]['serials'][serial]['period'].append(date)
 
-        if 'data' not in devices[name]['serials'][serial].keys():
-            devices[name]['serials'][serial]['data'] = {}
+        if 'fields' not in devices[name]['serials'][serial].keys():
+            devices[name]['serials'][serial]['fields'] = {}
 
         for field in fields.keys():
             if not is_digit(fields[field]) or field == 'system_Serial':
                 continue
             if field not in devices[name]['fields']:
                 devices[name]['fields'].append(field)
-            if field not in devices[name]['serials'][serial]['data'].keys():
-                devices[name]['serials'][serial]['data'][field] = []
-            devices[name]['serials'][serial]['data'][field].append(float(fields[field]))
+            if field not in devices[name]['serials'][serial]['fields'].keys():
+                devices[name]['serials'][serial]['fields'][field] = []
+            devices[name]['serials'][serial]['fields'][field].append(float(fields[field]))
 
     return devices
 
@@ -83,3 +83,8 @@ def get_min_max_date(filetype: str, device: dict, serials: list = None) -> tuple
         return min(min_dates), max(max_dates)
     elif filetype == 'CSV':
         return device['period'][0], device['period'][-1]
+
+
+def get_data_for_period(data: dict, date_1: str, date_2: str, field: str) -> tuple:
+    x = [date for date in data['period'] if date_1 <= date <= date_2]
+    y = [value for value in data['fields'][field]]

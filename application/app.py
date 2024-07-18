@@ -11,6 +11,8 @@ from .utils import get_json_data, get_csv_data, get_min_max_date
 
 class App:
     def __init__(self):
+        self.data = {}
+
         self.root = Tk()
         self.create_window()
 
@@ -54,7 +56,7 @@ class App:
         self.fields_list = []
 
         self.build_graphs_button = ttk.Button(self.toolbar, text='Построить графики', command=self.build_graphs,
-                                              state='disabled')
+                                              state=DISABLED)
 
         self.load_from_file_tools()
 
@@ -110,18 +112,28 @@ class App:
             self.toolbar.rowconfigure(index=r, weight=1)
         self.toolbar.pack(fill=X, expand=True, padx=5, pady=5, anchor=N)
 
-    def build_graphs(self):  # продолжить !!!
-        pass
+    def build_graphs(self): # ((field_frame, label, from_button, to_button, average_combobox, graph_combobox), (average_var, graph_var))
+        selected_indices = self.fields_listbox.curselection()
 
-    def create_choose_device_combobox(self, dct, var):
+        for i in selected_indices:
+            if self.data['type'] == 'JSON':
+                for k in range(len(self.serials_checkbutton)):
+                    if self.serials_checkbutton[k][0].get() == 1:
+                        pass # продолжить !!!
+
+
+
+    def create_choose_device_combobox(self):
         def device_selected(event):
-            self.configure_serials(dct, var)
+            self.configure_serials()
             self.fields_listbox.delete(0, END)
-            self.fields_listbox.configure(listvariable=Variable(value=list(dct[var.get()]['fields'])))
+            self.fields_listbox.configure(listvariable=
+                                          Variable(value=list(self.data['data'][self.data['var'].get()]['fields'])))
             self.clear_fields_list()
+            self.build_graphs_button.configure(state=DISABLED)
 
         self.choose_device_combobox.delete(0, END)
-        self.choose_device_combobox.configure(textvariable=var, values=list(dct.keys()))
+        self.choose_device_combobox.configure(textvariable=self.data['var'], values=list(self.data['data'].keys()))
         self.choose_device_combobox.bind("<<ComboboxSelected>>", device_selected)
 
     def is_serial_selected(self):
@@ -130,7 +142,7 @@ class App:
                 return True
         return False
 
-    def configure_serials(self, dct, var):
+    def configure_serials(self):
         def serial_selected():
             serials_list = []
             for k in range(len(self.serials_checkbutton)):
@@ -138,20 +150,22 @@ class App:
                     serials_list.append(self.serials_checkbutton[k][1]['text'])
             selected_indices = self.fields_listbox.curselection()
             if self.is_serial_selected():
-                self.create_fields_list(dct[var.get()], get_min_max_date(self.filetype_var.get(), dct[var.get()],
-                                                                         serials_list))
-                if len(selected_indices) > 0:
-                    for f in selected_indices:
-                        self.fields_list[f][0][0].pack(anchor=NW, fill=X, padx=5, pady=5)
+                self.create_fields_list(self.data['data'][self.data['var'].get()],
+                                        get_min_max_date('JSON',
+                                                         self.data['data'][self.data['var'].get()],
+                                                         serials_list))
+                for f in selected_indices:
+                    self.fields_list[f][0][0].pack(anchor=NW, fill=X, padx=5, pady=5)
             else:
                 self.clear_fields_list()
+                self.build_graphs_button.configure(state=DISABLED)
 
         for j in range(len(self.serials_checkbutton)):
             self.serials_checkbutton[j][1].destroy()
 
         self.serials_checkbutton.clear()
 
-        serials = sorted(list(dct[var.get()]['serials'].keys()))
+        serials = sorted(list(self.data['data'][self.data['var'].get()]['serials'].keys()))
         for i in range(len(serials)):
             serial_var = IntVar()
             self.serials_checkbutton.append((serial_var, ttk.Checkbutton(master=self.choose_serials,
@@ -160,32 +174,37 @@ class App:
                                                                          command=serial_selected)))
             self.serials_checkbutton[i][1].pack(anchor=NW, fill=X, padx=5, pady=5)
 
-    def create_fields_listbox(self, dct, var=None):
+    def create_fields_listbox(self):
         def field_selected(event):
             selected_indices = self.fields_listbox.curselection()
-            if var is not None:
+            if self.data['var'] is not None:
                 if not self.is_serial_selected():
                     self.fields_listbox.select_clear(0, END)
                     showerror(title="Ошибка", message="Выберите серийные номера")
                     return None
-            if var is None:
-                self.create_fields_list(dct, get_min_max_date('CSV', dct))
+            if self.data['var'] is None:
+                self.create_fields_list(self.data['data'], get_min_max_date('CSV', self.data['data']))
             for i in range(len(self.fields_list)):
                 self.fields_list[i][0][0].pack_forget()
             for i in selected_indices:
                 self.fields_list[i][0][0].pack(anchor=NW, fill=X, padx=5, pady=5)
+            if len(selected_indices) > 0:
+                self.build_graphs_button.configure(state=NORMAL)
+            elif len(selected_indices) == 0:
+                self.build_graphs_button.configure(state=DISABLED)
 
         self.fields_listbox.delete(0, END)
-        if var is None:
-            self.fields_listbox.configure(listvariable=Variable(value=list(dct['fields'].keys())))
+        if self.data['var'] is None:
+            self.fields_listbox.configure(listvariable=Variable(value=list(self.data['data']['fields'].keys())))
         else:
-            self.fields_listbox.configure(listvariable=Variable(value=dct[var.get()]['fields']))
+            self.fields_listbox.configure(listvariable=Variable(value=
+                                                                self.data['data'][self.data['var'].get()]['fields']))
         self.fields_listbox.bind("<<ListboxSelect>>", field_selected)
 
     def create_fields_list(self, dct, dates):
         average_list = ["как есть", "усреднить за час", "усреднить за 3 часа", "усреднить за сутки", "min за сутки",
                         "max за сутки"]
-        graph_list = ["линейный", "столбчатый", "пока не решил"]
+        graph_list = ["линейный", "столбчатый", "точечный"]
         for i in range(len(self.fields_list)):
             for j in range(len(self.fields_list[i])):
                 self.fields_list[i][0][j].destroy()
@@ -230,31 +249,30 @@ class App:
         elif self.filetype_var.get() == 'CSV':
             self.open_csv_file()
 
-    def file_not_found(self):
-        self.filename_label.configure(text='Здесь отобразится путь к файлу')
-        showerror(title="Ошибка", message="Файл не загружен")
-
     def open_json_file(self):
         filename = askopenfilename(filetypes=[('JSON files', '*.json')])
-        self.filename_label.configure(text=filename)
-
         try:
             with open(filename, encoding='UTF-8') as f:
                 data = json.load(f)
         except FileNotFoundError:
-            self.file_not_found()
+            showerror(title="Ошибка", message="Файл не загружен")
             return None
 
-        devices_dict = get_json_data(data)
+        data_dict = get_json_data(data)
 
-        self.device_label.grid_forget()
-        self.clear_fields_list()
-
-        if (len(list(devices_dict.keys()))) == 0:
+        if (len(list(data_dict.keys()))) == 0:
             showerror(title="Ошибка", message="Файл пуст")
             return None
 
-        devices_var = StringVar(value=list(devices_dict.keys())[0])
+        self.device_label.grid_forget()
+
+        self.filename_label.configure(text=filename)
+        self.data['data'] = data_dict
+        self.data['type'] = 'JSON'
+        self.data['var'] = StringVar(value=list(data_dict.keys())[0])
+
+        self.clear_fields_list()
+        self.build_graphs_button.configure(state=DISABLED)
 
         self.choose_device_combobox.grid(row=0, column=3)
 
@@ -268,37 +286,41 @@ class App:
 
         self.build_graphs_button.grid(row=2, column=0)
 
-        self.create_choose_device_combobox(devices_dict, devices_var)
-        self.configure_serials(devices_dict, devices_var)
-        self.create_fields_listbox(devices_dict, devices_var)
+        self.create_choose_device_combobox()
+        self.configure_serials()
+        self.create_fields_listbox()
 
     def open_csv_file(self):
         filename = askopenfilename(filetypes=[('CSV files', '*.csv')])
-        self.filename_label.configure(text=filename)
-
         try:
             with open(filename) as f:
                 data = list(csv.reader(f, delimiter=';'))
         except FileNotFoundError:
-            self.file_not_found()
+            showerror(title="Ошибка", message="Файл не загружен")
             return None
 
-        fields_dict = get_csv_data(data)
+        data_dict = get_csv_data(data)
+
+        if (len(list(data_dict.keys()))) == 0:
+            showerror(title="Ошибка", message="Файл пуст")
+            return None
 
         self.choose_device_combobox.grid_forget()
-        self.clear_fields_list()
-
         self.choose_serials.grid_forget()
         self.serials_label.pack_forget()
         for j in range(len(self.serials_checkbutton)):
             self.serials_checkbutton[j][1].destroy()
         self.serials_checkbutton.clear()
 
-        if (len(list(fields_dict.keys()))) == 0:
-            showerror(title="Ошибка", message="Файл пуст")
-            return None
+        self.filename_label.configure(text=filename)
+        self.data['data'] = data_dict
+        self.data['type'] = 'CSV'
+        self.data['var'] = None
 
-        self.device_label.configure(text='Прибор (серийный номер): \n' + fields_dict['device'])
+        self.clear_fields_list()
+        self.build_graphs_button.configure(state=DISABLED)
+
+        self.device_label.configure(text='Прибор (серийный номер): \n' + data_dict['device'])
         self.device_label.grid(row=0, column=3)
 
         self.fields_listbox.grid(row=1, column=0)
@@ -308,7 +330,7 @@ class App:
 
         self.build_graphs_button.grid(row=1, column=3)
 
-        self.create_fields_listbox(fields_dict)
+        self.create_fields_listbox()
 
     def run(self):
         self.root.mainloop()
