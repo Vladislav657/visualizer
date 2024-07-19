@@ -69,7 +69,7 @@ def get_csv_data(data: list) -> dict:
         if field not in fields['fields'].keys():
             fields['fields'][field] = []
         for row in data[2:]:
-            fields['fields'][field].append(row[i])
+            fields['fields'][field].append(float(row[i]))
     return fields
 
 
@@ -86,5 +86,82 @@ def get_min_max_date(filetype: str, device: dict, serials: list = None) -> tuple
 
 
 def get_data_for_period(data: dict, date_1: str, date_2: str, field: str) -> tuple:
-    x = [date for date in data['period'] if date_1 <= date <= date_2]
-    y = [value for value in data['fields'][field]]
+    x = []
+    y = []
+    for i, date in enumerate(data['period']):
+        if date_1 <= date <= date_2:
+            x.append(date)
+            y.append(data['fields'][field][i])
+    return x, y
+
+
+def ave(lst: list) -> float:
+    return sum(lst) / len(lst)
+
+
+def average_an_hour(period: list, data: list) -> tuple:
+    average = {}
+    for i, date in enumerate(period):
+        hour = date[:-6]
+        if hour not in average.keys():
+            average[hour] = []
+        average[hour].append(data[i])
+    x = []
+    y = []
+    for key, val in average.items():
+        x.append(key)
+        y.append(ave(val))
+    return x, y
+
+
+def average_three_hours(period: list, data: list) -> tuple:
+    average = {}
+    first = period[0][:-9]
+    last = period[-1][:-6]
+
+    hour = int(period[0][-8:-6])
+    i = 0
+    while f"{first} {str(hour + i).rjust(2, '0')}" <= last:
+        average[f"{first} {str(hour + i).rjust(2, '0')}"] = []
+        i += 3
+
+    x = list(average.keys())
+    i = 0
+    for j, val in enumerate(data):
+        if period[i][:-6] >= x[i + 1]:
+            i += 1
+        average[x[i]].append(val)
+    y = [ave(value) for value in average.values()]
+    return x, y
+
+
+def average_a_day(period: list, data: list, func: callable) -> tuple:  # 2022-11-02 00:00:00
+    average = {}
+    for i, date in enumerate(period):
+        day = date[:-9]
+        if day not in average.keys():
+            average[day] = []
+        average[day].append(data[i])
+    x = []
+    y = []
+    for key, val in average.items():
+        x.append(key)
+        y.append(func(val))
+    return x, y
+
+
+def average_request(period: list, data: list, request: str) -> tuple:
+    # "как есть", "усреднить за час", "усреднить за 3 часа", "усреднить за сутки", "min за сутки",
+    #                         "max за сутки"
+    if request == "как есть":
+        return period, data
+    elif request == "усреднить за час":
+        return average_an_hour(period, data)
+    elif request == "усреднить за 3 часа":
+        return average_three_hours(period, data)
+    elif request == "усреднить за сутки":
+        return average_a_day(period, data, ave)
+    elif request == "min за сутки":
+        return average_a_day(period, data, min)
+    elif request == "max за сутки":
+        return average_a_day(period, data, max)

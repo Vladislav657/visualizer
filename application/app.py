@@ -6,7 +6,10 @@ from tkinter.filedialog import askopenfilename
 from tkinter import *
 from tkinter import ttk
 
-from .utils import get_json_data, get_csv_data, get_min_max_date
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+from matplotlib.figure import Figure
+
+from .utils import *
 
 
 class App:
@@ -114,14 +117,41 @@ class App:
 
     def build_graphs(self): # ((field_frame, label, from_button, to_button, average_combobox, graph_combobox), (average_var, graph_var))
         selected_indices = self.fields_listbox.curselection()
-
         for i in selected_indices:
+            fig = Figure(figsize=(5, 4), dpi=100)
+            ax = fig.add_subplot(111)
+
             if self.data['type'] == 'JSON':
+                device = self.data['var'].get()
                 for k in range(len(self.serials_checkbutton)):
                     if self.serials_checkbutton[k][0].get() == 1:
-                        pass # продолжить !!!
+                        serial = self.serials_checkbutton[k][1]['text']
+                        data_for_graph = self.data['data'][device]['serials'][serial]
+                        date_1 = self.fields_list[i][0][2]['text']
+                        date_2 = self.fields_list[i][0][3]['text']
+                        field = self.data['data'][device]['fields'][i]
+                        x, y = get_data_for_period(data_for_graph, date_1, date_2, field)
+                        x, y = average_request(x, y, self.fields_list[i][1][0].get())
+                        ax.plot(x, y, label=f"{device} ({serial})")
 
+            elif self.data['type'] == 'CSV':
+                date_1 = self.fields_list[i][0][2]['text']
+                date_2 = self.fields_list[i][0][3]['text']
+                field = list(self.data['data']['fields'].keys())[i]
 
+                x, y = get_data_for_period(self.data['data'], date_1, date_2, field)
+                x, y = average_request(x, y, self.fields_list[i][1][0].get())
+                ax.plot(x, y, label=self.data['data']['device'])
+
+            ax.legend()
+
+            canvas = FigureCanvasTkAgg(fig, master=self.root)
+            canvas.draw()
+            canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=True)
+
+            toolbar = NavigationToolbar2Tk(canvas, self.root)
+            toolbar.update()
+            canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=True)
 
     def create_choose_device_combobox(self):
         def device_selected(event):
