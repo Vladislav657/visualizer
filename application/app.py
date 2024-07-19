@@ -8,6 +8,7 @@ from tkinter import ttk
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
+from matplotlib.ticker import MaxNLocator
 
 from .utils import *
 
@@ -132,7 +133,7 @@ class App:
                         field = self.data['data'][device]['fields'][i]
                         x, y = get_data_for_period(data_for_graph, date_1, date_2, field)
                         x, y = average_request(x, y, self.fields_list[i][1][0].get())
-                        ax.plot(x, y, label=f"{device} ({serial})")
+                        ax.plot(x, y, '-o', label=f"{device} ({serial})")
 
             elif self.data['type'] == 'CSV':
                 date_1 = self.fields_list[i][0][2]['text']
@@ -141,9 +142,11 @@ class App:
 
                 x, y = get_data_for_period(self.data['data'], date_1, date_2, field)
                 x, y = average_request(x, y, self.fields_list[i][1][0].get())
-                ax.plot(x, y, label=self.data['data']['device'])
+                ax.plot(x, y, '-o', label=self.data['data']['device'])
 
             ax.legend()
+            ax.xaxis.set_major_locator(MaxNLocator(nbins=10))
+            ax.grid(True)
 
             canvas = FigureCanvasTkAgg(fig, master=self.root)
             canvas.draw()
