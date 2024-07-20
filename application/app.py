@@ -53,7 +53,11 @@ class App:
         self.serials_label = ttk.Label(self.choose_serials, text="Серийные номера:")
         self.serials_checkbutton = []
 
-        self.fields_listbox = Listbox(self.toolbar, selectmode=MULTIPLE, exportselection=False)
+        self.fields_listbox_frame = Frame(self.toolbar, relief=SOLID)
+        self.fields_listbox = Listbox(self.fields_listbox_frame, selectmode=MULTIPLE, exportselection=False)
+        self.fields_listbox_scrollbar = ttk.Scrollbar(orient="vertical", command=self.fields_listbox.yview,
+                                                        master=self.fields_listbox_frame)
+        self.fields_listbox["yscrollcommand"] = self.fields_listbox_scrollbar.set
 
         self.chosen_fields = Frame(self.toolbar, relief=SOLID)
         self.fields_label = ttk.Label(master=self.chosen_fields, text="Поля для обработки:")
@@ -61,6 +65,19 @@ class App:
 
         self.build_graphs_button = ttk.Button(self.toolbar, text='Построить графики', command=self.build_graphs,
                                               state=DISABLED)
+
+        self.graphs_canvas = Canvas(self.root)
+        self.graphs_frame = Frame(self.root, relief=SOLID, width=2000)
+        self.graphs_frame_id = self.graphs_canvas.create_window((0, 0), window=self.graphs_frame, anchor=CENTER)
+
+        self.graphs_scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=self.graphs_canvas.yview)
+        self.graphs_canvas["yscrollcommand"] = self.graphs_scrollbar.set
+
+        def resize_frame(event):
+            # Растягиваем frame на всю площадь canvas
+            self.graphs_canvas.itemconfig(self.graphs_frame_id, width=event.width)
+
+        self.graphs_canvas.bind('<Configure>', resize_frame)
 
         self.load_from_file_tools()
 
@@ -71,6 +88,9 @@ class App:
 
         self.filename_label.configure(text='Здесь отобразится путь к файлу')
         self.filename_label.grid(row=0, column=2)
+
+        self.graphs_canvas.pack(side=LEFT, fill=BOTH, expand=True)
+        self.graphs_scrollbar.pack(side=RIGHT, fill=Y)
 
     def load_from_server_tools(self):
         self.open_file_frame.grid_forget()
@@ -88,7 +108,9 @@ class App:
             self.serials_checkbutton[j][1].destroy()
         self.serials_checkbutton.clear()
 
-        self.fields_listbox.grid_forget()
+        self.fields_listbox_frame.grid_forget()
+        self.fields_listbox.pack_forget()
+        self.fields_listbox_scrollbar.pack_forget()
 
         self.chosen_fields.grid_forget()
         self.fields_label.pack_forget()
@@ -97,6 +119,9 @@ class App:
                 self.fields_list[i][0][j].destroy()
 
         self.build_graphs_button.grid_forget()
+
+        self.graphs_canvas.pack_forget()
+        self.graphs_scrollbar.pack_forget()
 
     def way_selected(self):
         if self.way.get() == 'file':
@@ -119,6 +144,7 @@ class App:
     def build_graphs(self): # ((field_frame, label, from_button, to_button, average_combobox, graph_combobox), (average_var, graph_var))
         selected_indices = self.fields_listbox.curselection()
         for i in selected_indices:
+            graph = Frame(self.graphs_frame, relief=SOLID)
             fig = Figure(figsize=(5, 4), dpi=100)
             ax = fig.add_subplot(111)
 
@@ -133,7 +159,7 @@ class App:
                         field = self.data['data'][device]['fields'][i]
                         x, y = get_data_for_period(data_for_graph, date_1, date_2, field)
                         x, y = average_request(x, y, self.fields_list[i][1][0].get())
-                        ax.plot(x, y, '-o', label=f"{device} ({serial})")
+                        ax.plot(x, y, label=f"{device} ({serial})")
 
             elif self.data['type'] == 'CSV':
                 date_1 = self.fields_list[i][0][2]['text']
@@ -142,19 +168,23 @@ class App:
 
                 x, y = get_data_for_period(self.data['data'], date_1, date_2, field)
                 x, y = average_request(x, y, self.fields_list[i][1][0].get())
-                ax.plot(x, y, '-o', label=self.data['data']['device'])
+                ax.plot(x, y, label=self.data['data']['device'])
 
             ax.legend()
-            ax.xaxis.set_major_locator(MaxNLocator(nbins=10))
+            ax.xaxis.set_major_locator(MaxNLocator(nbins=8))
             ax.grid(True)
 
-            canvas = FigureCanvasTkAgg(fig, master=self.root)
+            graph.pack(side=TOP, fill=BOTH, expand=True)
+
+            canvas = FigureCanvasTkAgg(fig, master=graph)
             canvas.draw()
             canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=True)
 
-            toolbar = NavigationToolbar2Tk(canvas, self.root)
+            toolbar = NavigationToolbar2Tk(canvas, graph)
             toolbar.update()
             canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=True)
+        self.graphs_canvas.update_idletasks()
+        self.graphs_canvas.configure(scrollregion=self.graphs_canvas.bbox('all'))
 
     def create_choose_device_combobox(self):
         def device_selected(event):
@@ -312,7 +342,9 @@ class App:
         self.choose_serials.grid(row=1, column=0)
         self.serials_label.pack(anchor=NW, fill=X, padx=5, pady=5)
 
-        self.fields_listbox.grid(row=1, column=1)
+        self.fields_listbox_frame.grid(row=1, column=1)
+        self.fields_listbox.pack(side=LEFT, fill=BOTH, expand=True)
+        self.fields_listbox_scrollbar.pack(side=RIGHT, fill=Y)
 
         self.chosen_fields.grid(row=1, column=2, columnspan=2)
         self.fields_label.pack(anchor=NW, fill=X, padx=5, pady=5)
@@ -356,7 +388,9 @@ class App:
         self.device_label.configure(text='Прибор (серийный номер): \n' + data_dict['device'])
         self.device_label.grid(row=0, column=3)
 
-        self.fields_listbox.grid(row=1, column=0)
+        self.fields_listbox_frame.grid(row=1, column=0)
+        self.fields_listbox.pack(side=LEFT, fill=BOTH, expand=True)
+        self.fields_listbox_scrollbar.pack(side=RIGHT, fill=Y)
 
         self.chosen_fields.grid(row=1, column=1, columnspan=2)
         self.fields_label.pack(anchor=NW, fill=X, padx=5, pady=5)
