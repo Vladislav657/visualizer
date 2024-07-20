@@ -66,18 +66,8 @@ class App:
         self.build_graphs_button = ttk.Button(self.toolbar, text='Построить графики', command=self.build_graphs,
                                               state=DISABLED)
 
-        self.graphs_canvas = Canvas(self.root)
-        self.graphs_frame = Frame(self.root, relief=SOLID, width=2000)
-        self.graphs_frame_id = self.graphs_canvas.create_window((0, 0), window=self.graphs_frame, anchor=CENTER)
-
-        self.graphs_scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=self.graphs_canvas.yview)
-        self.graphs_canvas["yscrollcommand"] = self.graphs_scrollbar.set
-
-        def resize_frame(event):
-            # Растягиваем frame на всю площадь canvas
-            self.graphs_canvas.itemconfig(self.graphs_frame_id, width=event.width)
-
-        self.graphs_canvas.bind('<Configure>', resize_frame)
+        self.graphs_notebook = ttk.Notebook(self.root)
+        self.graphs_frames = []
 
         self.load_from_file_tools()
 
@@ -89,8 +79,7 @@ class App:
         self.filename_label.configure(text='Здесь отобразится путь к файлу')
         self.filename_label.grid(row=0, column=2)
 
-        self.graphs_canvas.pack(side=LEFT, fill=BOTH, expand=True)
-        self.graphs_scrollbar.pack(side=RIGHT, fill=Y)
+        self.graphs_notebook.pack(fill=BOTH, expand=True)
 
     def load_from_server_tools(self):
         self.open_file_frame.grid_forget()
@@ -120,9 +109,6 @@ class App:
 
         self.build_graphs_button.grid_forget()
 
-        self.graphs_canvas.pack_forget()
-        self.graphs_scrollbar.pack_forget()
-
     def way_selected(self):
         if self.way.get() == 'file':
             self.load_from_file_tools()
@@ -142,14 +128,36 @@ class App:
         self.toolbar.pack(fill=X, expand=True, padx=5, pady=5, anchor=N)
 
     def build_graphs(self): # ((field_frame, label, from_button, to_button, average_combobox, graph_combobox), (average_var, graph_var))
+        tab_frame = Frame(self.graphs_notebook, relief=SOLID)
+        graphs_canvas = Canvas(tab_frame)
+
+        graphs_frame = Frame(tab_frame, relief=SOLID)
+        graphs_frame_id = graphs_canvas.create_window((0, 0), window=graphs_frame, anchor=CENTER)
+
+        graphs_scrollbar = ttk.Scrollbar(tab_frame, orient="vertical", command=graphs_canvas.yview)
+        graphs_canvas["yscrollcommand"] = graphs_scrollbar.set
+
+        def resize_frame(event):
+            graphs_canvas.itemconfig(graphs_frame_id, width=event.width)
+
+        graphs_canvas.bind('<Configure>', resize_frame)
+
+        tab_frame.pack(fill=BOTH)
+        graphs_canvas.pack(side=LEFT, fill=BOTH, padx=50, expand=True)
+        graphs_scrollbar.pack(side=RIGHT, fill=Y)
+
+        self.graphs_frames.append((tab_frame, graphs_canvas, graphs_frame, graphs_scrollbar))
+
+        device = self.data['var'].get() if self.data['type'] == 'JSON' else self.data['data']['device']
+        self.graphs_notebook.add(tab_frame, text=device)
+        self.graphs_notebook.select(tab_frame)
+
         selected_indices = self.fields_listbox.curselection()
         for i in selected_indices:
-            graph = Frame(self.graphs_frame, relief=SOLID)
             fig = Figure(figsize=(5, 4), dpi=100)
             ax = fig.add_subplot(111)
 
             if self.data['type'] == 'JSON':
-                device = self.data['var'].get()
                 for k in range(len(self.serials_checkbutton)):
                     if self.serials_checkbutton[k][0].get() == 1:
                         serial = self.serials_checkbutton[k][1]['text']
@@ -168,23 +176,37 @@ class App:
 
                 x, y = get_data_for_period(self.data['data'], date_1, date_2, field)
                 x, y = average_request(x, y, self.fields_list[i][1][0].get())
-                ax.plot(x, y, label=self.data['data']['device'])
+                ax.plot(x, y, label=device)
 
             ax.legend()
             ax.xaxis.set_major_locator(MaxNLocator(nbins=8))
             ax.grid(True)
 
-            graph.pack(side=TOP, fill=BOTH, expand=True)
-
-            canvas = FigureCanvasTkAgg(fig, master=graph)
+            canvas = FigureCanvasTkAgg(fig, master=graphs_frame)
             canvas.draw()
             canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=True)
 
-            toolbar = NavigationToolbar2Tk(canvas, graph)
+            toolbar = NavigationToolbar2Tk(canvas, graphs_frame)
             toolbar.update()
-            canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=True)
-        self.graphs_canvas.update_idletasks()
-        self.graphs_canvas.configure(scrollregion=self.graphs_canvas.bbox('all'))
+            toolbar.pack(side=TOP, fill=BOTH, expand=True)
+
+        def close_graphs():
+            index = self.graphs_frames.index((tab_frame, graphs_canvas, graphs_frame, graphs_scrollbar))
+            self.graphs_notebook.forget(index)
+            del self.graphs_frames[index]
+            for child in graphs_frame.winfo_children():
+                child.destroy()
+            tab_frame.destroy()
+            graphs_canvas.destroy()
+            graphs_frame.destroy()
+            graphs_scrollbar.destroy()
+            close_button.destroy()
+
+        close_button = ttk.Button(graphs_frame, text='Удалить вкладку', command=close_graphs)
+        close_button.pack(side=BOTTOM, fill=BOTH, expand=True)
+
+        graphs_canvas.update_idletasks()
+        graphs_canvas.configure(scrollregion=graphs_canvas.bbox('all'))
 
     def create_choose_device_combobox(self):
         def device_selected(event):
