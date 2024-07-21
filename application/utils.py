@@ -80,16 +80,16 @@ def get_min_max_date(filetype: str, device: dict, serials: list = None) -> tuple
         for serial in serials:
             min_dates.append(device['serials'][serial]['period'][0])
             max_dates.append(device['serials'][serial]['period'][-1])
-        return min(min_dates), max(max_dates)
+        return min(min_dates)[:-9], max(max_dates)[:-9]
     elif filetype == 'CSV':
-        return device['period'][0], device['period'][-1]
+        return device['period'][0][:-9], device['period'][-1][:-9]
 
 
 def get_data_for_period(data: dict, date_1: str, date_2: str, field: str) -> tuple:
     x = []
     y = []
     for i, date in enumerate(data['period']):
-        if date_1 <= date <= date_2:
+        if date_1 <= date[:-9] <= date_2:
             x.append(date)
             y.append(data['fields'][field][i])
     return x, y

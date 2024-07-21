@@ -5,6 +5,7 @@ from tkinter.messagebox import showerror
 from tkinter.filedialog import askopenfilename
 from tkinter import *
 from tkinter import ttk
+from tkcalendar import DateEntry
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
@@ -179,7 +180,7 @@ class App:
                 ax.plot(x, y, label=device)
 
             ax.legend()
-            ax.xaxis.set_major_locator(MaxNLocator(nbins=8))
+            ax.xaxis.set_major_locator(MaxNLocator(nbins=7))
             ax.grid(True)
 
             canvas = FigureCanvasTkAgg(fig, master=graphs_frame)
@@ -302,14 +303,21 @@ class App:
             label = ttk.Label(field_frame, text=field)
             label.pack(side=LEFT, padx=5, pady=5)
 
-            from_button = ttk.Button(field_frame, text=dates[0])
-            from_button.pack(side=LEFT, padx=5, pady=5)
+            from_label = ttk.Label(field_frame, text='с')
+            from_label.pack(side=LEFT, padx=5, pady=5)
 
-            to = ttk.Label(field_frame, text='по')
-            to.pack(side=LEFT, padx=5, pady=5)
+            from_date = DateEntry(master=field_frame, date_pattern="yyyy-mm-dd")
+            from_date.delete(0, END)
+            from_date.insert(END, dates[0])
+            from_date.pack(side=LEFT, padx=5, pady=5)
 
-            to_button = ttk.Button(field_frame, text=dates[1])
-            to_button.pack(side=LEFT, padx=5, pady=5)
+            to_label = ttk.Label(field_frame, text='по')
+            to_label.pack(side=LEFT, padx=5, pady=5)
+
+            to_date = DateEntry(master=field_frame, date_pattern="yyyy-mm-dd")
+            to_date.delete(0, END)
+            to_date.insert(END, dates[1])
+            to_date.pack(side=LEFT, padx=5, pady=5)
 
             average_var = StringVar(value=average_list[0])
             average_combobox = ttk.Combobox(field_frame, values=average_list, textvariable=average_var,
@@ -320,7 +328,7 @@ class App:
             graph_combobox = ttk.Combobox(field_frame, values=graph_list, textvariable=graph_var, state='readonly')
             graph_combobox.pack(side=LEFT, padx=5, pady=5)
 
-            self.fields_list.append(((field_frame, label, from_button, to_button, average_combobox, graph_combobox),
+            self.fields_list.append(((field_frame, label, from_date, to_date, average_combobox, graph_combobox),
                                      (average_var, graph_var)))
 
     def clear_fields_list(self):
