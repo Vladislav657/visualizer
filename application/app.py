@@ -62,7 +62,7 @@ class App:
 
         self.chosen_fields = Frame(self.toolbar, relief=SOLID)
         self.fields_label = ttk.Label(master=self.chosen_fields, text="Поля для обработки:")
-        self.fields_list = []
+        self.fields_dict = {}
 
         self.build_graphs_button = ttk.Button(self.toolbar, text='Построить графики', command=self.build_graphs,
                                               state=DISABLED)
@@ -104,9 +104,7 @@ class App:
 
         self.chosen_fields.grid_forget()
         self.fields_label.pack_forget()
-        for i in range(len(self.fields_list)):
-            for j in range(len(self.fields_list[i])):
-                self.fields_list[i][0][j].destroy()
+        self.clear_fields_dict()
 
         self.build_graphs_button.grid_forget()
 
@@ -128,7 +126,7 @@ class App:
             self.toolbar.rowconfigure(index=r, weight=1)
         self.toolbar.pack(fill=X, expand=True, padx=5, pady=5, anchor=N)
 
-    def build_graphs(self): # ((field_frame, label, from_button, to_button, average_combobox, graph_combobox), (average_var, graph_var))
+    def build_graphs(self):
         tab_frame = Frame(self.graphs_notebook, relief=SOLID)
         graphs_canvas = Canvas(tab_frame)
 
@@ -157,30 +155,41 @@ class App:
         for i in selected_indices:
             fig = Figure(figsize=(5, 4), dpi=100)
             ax = fig.add_subplot(111)
+            field = self.data['data'][device]['fields'][i] if self.data['type'] == 'JSON' else (
+                list(self.data['data']['fields'].keys()))[i]
+            date_1 = self.fields_dict[i][0][2].get()
+            date_2 = self.fields_dict[i][0][3].get()
+            average = self.fields_dict[i][1][0].get()
+            graph_type = self.fields_dict[i][1][1].get()
 
             if self.data['type'] == 'JSON':
-                for k in range(len(self.serials_checkbutton)):
-                    if self.serials_checkbutton[k][0].get() == 1:
-                        serial = self.serials_checkbutton[k][1]['text']
-                        data_for_graph = self.data['data'][device]['serials'][serial]
-                        date_1 = self.fields_list[i][0][2]['text']
-                        date_2 = self.fields_list[i][0][3]['text']
-                        field = self.data['data'][device]['fields'][i]
-                        x, y = get_data_for_period(data_for_graph, date_1, date_2, field)
-                        x, y = average_request(x, y, self.fields_list[i][1][0].get())
+                serials = self.get_serials()
+                for serial in serials:
+                    data_for_graph = self.data['data'][device]['serials'][serial]
+                    x, y = get_data_for_period(data_for_graph, date_1, date_2, field)
+                    x, y = average_request(x, y, average) # "линейный", "столбчатый", "точечный"
+                    if graph_type == "линейный":
                         ax.plot(x, y, label=f"{device} ({serial})")
+                    elif graph_type == "столбчатый":
+                        ax.bar(x, y, label=f"{device} ({serial})")
+                    elif graph_type == "точечный":
+                        ax.scatter(x, y, label=f"{device} ({serial})")
 
             elif self.data['type'] == 'CSV':
-                date_1 = self.fields_list[i][0][2]['text']
-                date_2 = self.fields_list[i][0][3]['text']
-                field = list(self.data['data']['fields'].keys())[i]
-
                 x, y = get_data_for_period(self.data['data'], date_1, date_2, field)
-                x, y = average_request(x, y, self.fields_list[i][1][0].get())
-                ax.plot(x, y, label=device)
+                x, y = average_request(x, y, average)
+                if graph_type == "линейный":
+                    ax.plot(x, y, label=device)
+                elif graph_type == "столбчатый":
+                    ax.bar(x, y, label=device)
+                elif graph_type == "точечный":
+                    ax.scatter(x, y, label=device)
 
+            fig.suptitle(f"{field} с {date_1} по {date_2} ({average}, {graph_type})")
             ax.legend()
             ax.xaxis.set_major_locator(MaxNLocator(nbins=7))
+            ax.set_xlabel('DateTime')
+            ax.set_ylabel(field)
             ax.grid(True)
 
             canvas = FigureCanvasTkAgg(fig, master=graphs_frame)
@@ -209,18 +218,18 @@ class App:
         graphs_canvas.update_idletasks()
         graphs_canvas.configure(scrollregion=graphs_canvas.bbox('all'))
 
-    def create_choose_device_combobox(self):
-        def device_selected(event):
-            self.configure_serials()
-            self.fields_listbox.delete(0, END)
-            self.fields_listbox.configure(listvariable=
-                                          Variable(value=list(self.data['data'][self.data['var'].get()]['fields'])))
-            self.clear_fields_list()
-            self.build_graphs_button.configure(state=DISABLED)
+    def device_selected(self, event):
+        self.configure_serials()
+        self.fields_listbox.delete(0, END)
+        self.fields_listbox.configure(listvariable=
+                                      Variable(value=list(self.data['data'][self.data['var'].get()]['fields'])))
+        self.clear_fields_dict()
+        self.build_graphs_button.configure(state=DISABLED)
 
+    def create_choose_device_combobox(self):
         self.choose_device_combobox.delete(0, END)
         self.choose_device_combobox.configure(textvariable=self.data['var'], values=list(self.data['data'].keys()))
-        self.choose_device_combobox.bind("<<ComboboxSelected>>", device_selected)
+        self.choose_device_combobox.bind("<<ComboboxSelected>>", self.device_selected)
 
     def is_serial_selected(self):
         for k in range(len(self.serials_checkbutton)):
@@ -228,27 +237,32 @@ class App:
                 return True
         return False
 
-    def configure_serials(self):
-        def serial_selected():
-            serials_list = []
-            for k in range(len(self.serials_checkbutton)):
-                if self.serials_checkbutton[k][0].get() == 1:
-                    serials_list.append(self.serials_checkbutton[k][1]['text'])
-            selected_indices = self.fields_listbox.curselection()
-            if self.is_serial_selected():
-                self.create_fields_list(self.data['data'][self.data['var'].get()],
-                                        get_min_max_date('JSON',
-                                                         self.data['data'][self.data['var'].get()],
-                                                         serials_list))
-                for f in selected_indices:
-                    self.fields_list[f][0][0].pack(anchor=NW, fill=X, padx=5, pady=5)
-            else:
-                self.clear_fields_list()
-                self.build_graphs_button.configure(state=DISABLED)
+    def get_serials(self):
+        serials = []
+        for k in range(len(self.serials_checkbutton)):
+            if self.serials_checkbutton[k][0].get() == 1:
+                serials.append(self.serials_checkbutton[k][1]['text'])
+        return serials
 
+    def serial_selected(self):
+        if self.is_serial_selected():
+            serials_list = self.get_serials()
+            dates = get_min_max_date('JSON', self.data['data'][self.data['var'].get()], serials_list)
+            for key in self.fields_dict.keys():
+                self.fields_dict[key][0][2].delete(0, END)
+                self.fields_dict[key][0][2].insert(END, dates[0])
+
+                self.fields_dict[key][0][3].delete(0, END)
+                self.fields_dict[key][0][3].insert(END, dates[1])
+
+        else:
+            self.fields_listbox.select_clear(0, END)
+            self.clear_fields_dict()
+            self.build_graphs_button.configure(state=DISABLED)
+
+    def configure_serials(self):
         for j in range(len(self.serials_checkbutton)):
             self.serials_checkbutton[j][1].destroy()
-
         self.serials_checkbutton.clear()
 
         serials = sorted(list(self.data['data'][self.data['var'].get()]['serials'].keys()))
@@ -257,84 +271,98 @@ class App:
             self.serials_checkbutton.append((serial_var, ttk.Checkbutton(master=self.choose_serials,
                                                                          text=serials[i],
                                                                          variable=serial_var,
-                                                                         command=serial_selected)))
+                                                                         command=self.serial_selected)))
             self.serials_checkbutton[i][1].pack(anchor=NW, fill=X, padx=5, pady=5)
 
-    def create_fields_listbox(self):
-        def field_selected(event):
-            selected_indices = self.fields_listbox.curselection()
-            if self.data['var'] is not None:
-                if not self.is_serial_selected():
-                    self.fields_listbox.select_clear(0, END)
-                    showerror(title="Ошибка", message="Выберите серийные номера")
-                    return None
-            if self.data['var'] is None:
-                self.create_fields_list(self.data['data'], get_min_max_date('CSV', self.data['data']))
-            for i in range(len(self.fields_list)):
-                self.fields_list[i][0][0].pack_forget()
-            for i in selected_indices:
-                self.fields_list[i][0][0].pack(anchor=NW, fill=X, padx=5, pady=5)
-            if len(selected_indices) > 0:
-                self.build_graphs_button.configure(state=NORMAL)
-            elif len(selected_indices) == 0:
-                self.build_graphs_button.configure(state=DISABLED)
+    def field_selected(self, event):
+        selected_indices = self.fields_listbox.curselection()
 
+        if self.data['var'] is not None:
+            if not self.is_serial_selected():
+                self.fields_listbox.select_clear(0, END)
+                showerror(title="Ошибка", message="Выберите серийные номера")
+                return None
+
+            serials_list = self.get_serials()
+            dates = get_min_max_date('JSON', self.data['data'][self.data['var'].get()], serials_list)
+            for i in selected_indices:
+                if i not in self.fields_dict.keys():
+                    self.add_field(i, self.data['data'][self.data['var'].get()]['fields'][i], dates)
+        else:
+            dates = get_min_max_date('CSV', self.data['data'])
+            for i in selected_indices:
+                if i not in self.fields_dict.keys():
+                    self.add_field(i, list(self.data['data']['fields'].keys())[i], dates)
+
+        keys = list(self.fields_dict.keys())
+        for key in keys:
+            if key not in selected_indices:
+                self.remove_field(key)
+
+        if len(selected_indices) > 0:
+            self.build_graphs_button.configure(state=NORMAL)
+        elif len(selected_indices) == 0:
+            self.build_graphs_button.configure(state=DISABLED)
+
+    def create_fields_listbox(self):
         self.fields_listbox.delete(0, END)
         if self.data['var'] is None:
             self.fields_listbox.configure(listvariable=Variable(value=list(self.data['data']['fields'].keys())))
         else:
             self.fields_listbox.configure(listvariable=Variable(value=
                                                                 self.data['data'][self.data['var'].get()]['fields']))
-        self.fields_listbox.bind("<<ListboxSelect>>", field_selected)
+        self.fields_listbox.bind("<<ListboxSelect>>", self.field_selected)
 
-    def create_fields_list(self, dct, dates):
+    def clear_fields_dict(self):
+        keys = list(self.fields_dict.keys())
+        for key in keys:
+            for j in range(len(self.fields_dict[key][0])):
+                self.fields_dict[key][0][j].destroy()
+            del self.fields_dict[key]
+
+    def remove_field(self, key):
+        for j in range(len(self.fields_dict[key][0])):
+            self.fields_dict[key][0][j].destroy()
+        del self.fields_dict[key]
+
+    def add_field(self, index, field, dates):
         average_list = ["как есть", "усреднить за час", "усреднить за 3 часа", "усреднить за сутки", "min за сутки",
                         "max за сутки"]
         graph_list = ["линейный", "столбчатый", "точечный"]
-        for i in range(len(self.fields_list)):
-            for j in range(len(self.fields_list[i])):
-                self.fields_list[i][0][j].destroy()
 
-        self.fields_list.clear()
+        field_frame = Frame(self.chosen_fields)
+        field_frame.pack(anchor=NW, fill=X, padx=5, pady=5)
 
-        for field in dct['fields']:
-            field_frame = Frame(self.chosen_fields)
+        label = ttk.Label(field_frame, text=field)
+        label.pack(side=LEFT, padx=5, pady=5)
 
-            label = ttk.Label(field_frame, text=field)
-            label.pack(side=LEFT, padx=5, pady=5)
+        from_label = ttk.Label(field_frame, text='с')
+        from_label.pack(side=LEFT, padx=5, pady=5)
 
-            from_label = ttk.Label(field_frame, text='с')
-            from_label.pack(side=LEFT, padx=5, pady=5)
+        from_date = DateEntry(master=field_frame, date_pattern="yyyy-mm-dd")
+        from_date.delete(0, END)
+        from_date.insert(END, dates[0])
+        from_date.pack(side=LEFT, padx=5, pady=5)
 
-            from_date = DateEntry(master=field_frame, date_pattern="yyyy-mm-dd")
-            from_date.delete(0, END)
-            from_date.insert(END, dates[0])
-            from_date.pack(side=LEFT, padx=5, pady=5)
+        to_label = ttk.Label(field_frame, text='по')
+        to_label.pack(side=LEFT, padx=5, pady=5)
 
-            to_label = ttk.Label(field_frame, text='по')
-            to_label.pack(side=LEFT, padx=5, pady=5)
+        to_date = DateEntry(master=field_frame, date_pattern="yyyy-mm-dd")
+        to_date.delete(0, END)
+        to_date.insert(END, dates[1])
+        to_date.pack(side=LEFT, padx=5, pady=5)
 
-            to_date = DateEntry(master=field_frame, date_pattern="yyyy-mm-dd")
-            to_date.delete(0, END)
-            to_date.insert(END, dates[1])
-            to_date.pack(side=LEFT, padx=5, pady=5)
+        average_var = StringVar(value=average_list[0])
+        average_combobox = ttk.Combobox(field_frame, values=average_list, textvariable=average_var,
+                                        state='readonly')
+        average_combobox.pack(side=LEFT, padx=5, pady=5)
 
-            average_var = StringVar(value=average_list[0])
-            average_combobox = ttk.Combobox(field_frame, values=average_list, textvariable=average_var,
-                                            state='readonly')
-            average_combobox.pack(side=LEFT, padx=5, pady=5)
+        graph_var = StringVar(value=graph_list[0])
+        graph_combobox = ttk.Combobox(field_frame, values=graph_list, textvariable=graph_var, state='readonly')
+        graph_combobox.pack(side=LEFT, padx=5, pady=5)
 
-            graph_var = StringVar(value=graph_list[0])
-            graph_combobox = ttk.Combobox(field_frame, values=graph_list, textvariable=graph_var, state='readonly')
-            graph_combobox.pack(side=LEFT, padx=5, pady=5)
-
-            self.fields_list.append(((field_frame, label, from_date, to_date, average_combobox, graph_combobox),
-                                     (average_var, graph_var)))
-
-    def clear_fields_list(self):
-        self.fields_listbox.select_clear(0, END)
-        for f in range(len(self.fields_list)):
-            self.fields_list[f][0][0].pack_forget()
+        self.fields_dict[index] = ((field_frame, label, from_date, to_date, average_combobox, graph_combobox),
+                                   (average_var, graph_var))
 
     def open_file(self):
         if self.filetype_var.get() == 'JSON':
@@ -364,7 +392,7 @@ class App:
         self.data['type'] = 'JSON'
         self.data['var'] = StringVar(value=list(data_dict.keys())[0])
 
-        self.clear_fields_list()
+        self.clear_fields_dict()
         self.build_graphs_button.configure(state=DISABLED)
 
         self.choose_device_combobox.grid(row=0, column=3)
@@ -412,7 +440,7 @@ class App:
         self.data['type'] = 'CSV'
         self.data['var'] = None
 
-        self.clear_fields_list()
+        self.clear_fields_dict()
         self.build_graphs_button.configure(state=DISABLED)
 
         self.device_label.configure(text='Прибор (серийный номер): \n' + data_dict['device'])
