@@ -21,7 +21,18 @@ class App:
         self.root = Tk()
         self.create_window()
 
-        self.toolbar = Frame(self.root, borderwidth=1)
+        self.load_button = ttk.Button(master=self.root, text='Загрузить данные', command=self.load_data)
+        self.load_button.pack(side=TOP, anchor=N, fill=X, expand=True)
+
+        self.toolbar = None
+        self.graphs_notebook = ttk.Notebook(self.root)
+        self.graphs_frames = []
+
+    def load_data(self):
+        self.toolbar = Toplevel()
+        self.toolbar.title("Новое окно")
+        self.toolbar.iconbitmap('graph-5_icon.ico')
+        self.toolbar.geometry("1000x500")
         self.create_toolbar()
 
         self.way_to_load_data = Frame(self.toolbar, relief=SOLID)
@@ -57,7 +68,7 @@ class App:
         self.fields_listbox_frame = Frame(self.toolbar, relief=SOLID)
         self.fields_listbox = Listbox(self.fields_listbox_frame, selectmode=MULTIPLE, exportselection=False)
         self.fields_listbox_scrollbar = ttk.Scrollbar(orient="vertical", command=self.fields_listbox.yview,
-                                                        master=self.fields_listbox_frame)
+                                                      master=self.fields_listbox_frame)
         self.fields_listbox["yscrollcommand"] = self.fields_listbox_scrollbar.set
 
         self.chosen_fields = Frame(self.toolbar, relief=SOLID)
@@ -66,9 +77,6 @@ class App:
 
         self.build_graphs_button = ttk.Button(self.toolbar, text='Построить графики', command=self.build_graphs,
                                               state=DISABLED)
-
-        self.graphs_notebook = ttk.Notebook(self.root)
-        self.graphs_frames = []
 
         self.load_from_file_tools()
 
@@ -80,7 +88,7 @@ class App:
         self.filename_label.configure(text='Здесь отобразится путь к файлу')
         self.filename_label.grid(row=0, column=2)
 
-        self.graphs_notebook.pack(fill=BOTH, expand=True)
+        self.graphs_notebook.pack(fill=BOTH, anchor=N, side=TOP, expand=True)
 
     def load_from_server_tools(self):
         self.open_file_frame.grid_forget()
@@ -124,7 +132,6 @@ class App:
             self.toolbar.columnconfigure(index=c, weight=1)
         for r in range(3):
             self.toolbar.rowconfigure(index=r, weight=1)
-        self.toolbar.pack(fill=X, expand=True, padx=5, pady=5, anchor=N)
 
     def build_graphs(self):
         tab_frame = Frame(self.graphs_notebook, relief=SOLID)
@@ -141,14 +148,34 @@ class App:
 
         graphs_canvas.bind('<Configure>', resize_frame)
 
-        tab_frame.pack(fill=BOTH)
+        tab_frame.pack(side=TOP, anchor=N, fill=BOTH)
         graphs_canvas.pack(side=LEFT, fill=BOTH, padx=50, expand=True)
         graphs_scrollbar.pack(side=RIGHT, fill=Y)
 
-        self.graphs_frames.append((tab_frame, graphs_canvas, graphs_frame, graphs_scrollbar))
+        def close_graphs():
+            index = self.graphs_frames.index((tab_frame, graphs_canvas, graphs_frame, graphs_scrollbar))
+            self.graphs_notebook.forget(index)
+            del self.graphs_frames[index]
+            for child in graphs_frame.winfo_children():
+                child.destroy()
+            tab_frame.destroy()
+            graphs_canvas.destroy()
+            graphs_frame.destroy()
+            graphs_scrollbar.destroy()
+            close_button.destroy()
 
-        device = self.data['var'].get() if self.data['type'] == 'JSON' else self.data['data']['device']
-        self.graphs_notebook.add(tab_frame, text=device)
+        close_button = ttk.Button(graphs_frame, text='Удалить вкладку', command=close_graphs)
+
+        self.graphs_frames.append((tab_frame, graphs_canvas, graphs_frame, graphs_scrollbar))
+        serials = None
+        if self.data['type'] == 'JSON':
+            device = self.data['var'].get()
+            serials = self.get_serials()
+            self.graphs_notebook.add(tab_frame, text=f"{device} ({', '.join(serials)})")
+        else:
+            device = self.data['data']['device']
+            self.graphs_notebook.add(tab_frame, text=device)
+
         self.graphs_notebook.select(tab_frame)
 
         selected_indices = self.fields_listbox.curselection()
@@ -159,11 +186,22 @@ class App:
                 list(self.data['data']['fields'].keys()))[i]
             date_1 = self.fields_dict[i][0][2].get()
             date_2 = self.fields_dict[i][0][3].get()
+            if date_1 > date_2:
+                showerror('Ошибка', message='Начальная дата не может быть позднее конечной')
+                close_graphs()
+                return None
+            else:
+                device_dict = self.data['data'][device] if self.data['type'] == 'JSON' else self.data['data']
+                dates = get_min_max_date(self.data['type'], device_dict, serials)
+                if date_1 < dates[0] or date_2 > dates[1]:
+                    showerror('Ошибка', message='Выход за диапазон дат')
+                    close_graphs()
+                    return None
+
             average = self.fields_dict[i][1][0].get()
             graph_type = self.fields_dict[i][1][1].get()
 
             if self.data['type'] == 'JSON':
-                serials = self.get_serials()
                 for serial in serials:
                     data_for_graph = self.data['data'][device]['serials'][serial]
                     x, y = get_data_for_period(data_for_graph, date_1, date_2, field)
@@ -200,19 +238,6 @@ class App:
             toolbar.update()
             toolbar.pack(side=TOP, fill=BOTH, expand=True)
 
-        def close_graphs():
-            index = self.graphs_frames.index((tab_frame, graphs_canvas, graphs_frame, graphs_scrollbar))
-            self.graphs_notebook.forget(index)
-            del self.graphs_frames[index]
-            for child in graphs_frame.winfo_children():
-                child.destroy()
-            tab_frame.destroy()
-            graphs_canvas.destroy()
-            graphs_frame.destroy()
-            graphs_scrollbar.destroy()
-            close_button.destroy()
-
-        close_button = ttk.Button(graphs_frame, text='Удалить вкладку', command=close_graphs)
         close_button.pack(side=BOTTOM, fill=BOTH, expand=True)
 
         graphs_canvas.update_idletasks()
