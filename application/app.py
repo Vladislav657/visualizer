@@ -11,6 +11,8 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 from matplotlib.figure import Figure
 from matplotlib.ticker import MaxNLocator
 
+import numpy as np
+
 from .utils import *
 
 
@@ -34,7 +36,7 @@ class App:
 
     def load_data(self):
         self.toolbar = Toplevel()
-        self.toolbar.title("Новое окно")
+        self.toolbar.title("Выбор данных")
         self.toolbar.iconbitmap('graph-5_icon.ico')
         self.toolbar.geometry("1000x500")
         self.toolbar.protocol("WM_DELETE_WINDOW", self.dismiss_toolbar)  # перехватываем нажатие на крестик
@@ -213,6 +215,9 @@ class App:
             graph_type = self.fields_dict[i][1][1].get()
 
             if self.data['type'] == 'JSON':
+                len_serials = len(serials)
+                bar_count = 0
+                width = 0.3
                 for serial in serials:
                     data_for_graph = self.data['data'][device]['serials'][serial]
                     x, y = get_data_for_period(data_for_graph, date_1, date_2, field)
@@ -220,7 +225,11 @@ class App:
                     if graph_type == "линейный":
                         ax.plot(x, y, label=f"{device} ({serial})")
                     elif graph_type == "столбчатый":
-                        ax.bar(x, y, label=f"{device} ({serial})")
+                        x_range = np.arange(len(x))
+                        ax.bar(x_range - 2 * bar_count * width / len_serials, y, width, label=f"{device} ({serial})")
+                        bar_count += 1
+                        ax.set_xticks(x_range)
+                        ax.set_xticklabels(x)
                     elif graph_type == "точечный":
                         ax.scatter(x, y, label=f"{device} ({serial})")
 
