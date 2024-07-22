@@ -22,17 +22,22 @@ class App:
         self.create_window()
 
         self.load_button = ttk.Button(master=self.root, text='Загрузить данные', command=self.load_data)
-        self.load_button.pack(side=TOP, anchor=N, fill=X, expand=True)
+        self.load_button.pack(anchor=N, fill=X)
 
         self.toolbar = None
         self.graphs_notebook = ttk.Notebook(self.root)
         self.graphs_frames = []
+
+    def dismiss_toolbar(self):
+        self.toolbar.grab_release()
+        self.toolbar.destroy()
 
     def load_data(self):
         self.toolbar = Toplevel()
         self.toolbar.title("Новое окно")
         self.toolbar.iconbitmap('graph-5_icon.ico')
         self.toolbar.geometry("1000x500")
+        self.toolbar.protocol("WM_DELETE_WINDOW", self.dismiss_toolbar)  # перехватываем нажатие на крестик
         self.create_toolbar()
 
         self.way_to_load_data = Frame(self.toolbar, relief=SOLID)
@@ -46,6 +51,8 @@ class App:
         self.load_from_server = ttk.Radiobutton(self.way_to_load_data, text='Загрузить данные с сервера',
                                                 value='server', variable=self.way, command=self.way_selected)
         self.load_from_server.pack(anchor=NW, fill=X, padx=5, pady=5)
+
+        self.toolbar.grab_set()
 
         # -------------------------------------------------------------------------
 
@@ -77,8 +84,12 @@ class App:
 
         self.build_graphs_button = ttk.Button(self.toolbar, text='Построить графики', command=self.build_graphs,
                                               state=DISABLED)
-
         self.load_from_file_tools()
+        if len(list(self.data.keys())) > 0:
+            if self.data['type'] == 'JSON':
+                self.map_json_file_tools()
+            elif self.data['type'] == 'CSV':
+                self.map_csv_file_tools()
 
     def load_from_file_tools(self):
         self.open_file_frame.grid(row=0, column=1)
@@ -88,7 +99,7 @@ class App:
         self.filename_label.configure(text='Здесь отобразится путь к файлу')
         self.filename_label.grid(row=0, column=2)
 
-        self.graphs_notebook.pack(fill=BOTH, anchor=N, side=TOP, expand=True)
+        self.graphs_notebook.pack(fill=BOTH, expand=True)
 
     def load_from_server_tools(self):
         self.open_file_frame.grid_forget()
@@ -242,6 +253,7 @@ class App:
 
         graphs_canvas.update_idletasks()
         graphs_canvas.configure(scrollregion=graphs_canvas.bbox('all'))
+        self.dismiss_toolbar()
 
     def device_selected(self, event):
         self.configure_serials()
@@ -412,31 +424,15 @@ class App:
 
         self.device_label.grid_forget()
 
-        self.filename_label.configure(text=filename)
         self.data['data'] = data_dict
         self.data['type'] = 'JSON'
+        self.data['name'] = filename
         self.data['var'] = StringVar(value=list(data_dict.keys())[0])
 
         self.clear_fields_dict()
         self.build_graphs_button.configure(state=DISABLED)
 
-        self.choose_device_combobox.grid(row=0, column=3)
-
-        self.choose_serials.grid(row=1, column=0)
-        self.serials_label.pack(anchor=NW, fill=X, padx=5, pady=5)
-
-        self.fields_listbox_frame.grid(row=1, column=1)
-        self.fields_listbox.pack(side=LEFT, fill=BOTH, expand=True)
-        self.fields_listbox_scrollbar.pack(side=RIGHT, fill=Y)
-
-        self.chosen_fields.grid(row=1, column=2, columnspan=2)
-        self.fields_label.pack(anchor=NW, fill=X, padx=5, pady=5)
-
-        self.build_graphs_button.grid(row=2, column=0)
-
-        self.create_choose_device_combobox()
-        self.configure_serials()
-        self.create_fields_listbox()
+        self.map_json_file_tools()
 
     def open_csv_file(self):
         filename = askopenfilename(filetypes=[('CSV files', '*.csv')])
@@ -460,15 +456,40 @@ class App:
             self.serials_checkbutton[j][1].destroy()
         self.serials_checkbutton.clear()
 
-        self.filename_label.configure(text=filename)
         self.data['data'] = data_dict
         self.data['type'] = 'CSV'
+        self.data['name'] = filename
+        self.data['device'] = data_dict['device']
         self.data['var'] = None
 
         self.clear_fields_dict()
         self.build_graphs_button.configure(state=DISABLED)
 
-        self.device_label.configure(text='Прибор (серийный номер): \n' + data_dict['device'])
+        self.map_csv_file_tools()
+
+    def map_json_file_tools(self):
+        self.filename_label.configure(text=self.data['name'])
+        self.choose_device_combobox.grid(row=0, column=3)
+
+        self.choose_serials.grid(row=1, column=0)
+        self.serials_label.pack(anchor=NW, fill=X, padx=5, pady=5)
+
+        self.fields_listbox_frame.grid(row=1, column=1)
+        self.fields_listbox.pack(side=LEFT, fill=BOTH, expand=True)
+        self.fields_listbox_scrollbar.pack(side=RIGHT, fill=Y)
+
+        self.chosen_fields.grid(row=1, column=2, columnspan=2)
+        self.fields_label.pack(anchor=NW, fill=X, padx=5, pady=5)
+
+        self.build_graphs_button.grid(row=2, column=0)
+
+        self.create_choose_device_combobox()
+        self.configure_serials()
+        self.create_fields_listbox()
+
+    def map_csv_file_tools(self):
+        self.filename_label.configure(text=self.data['name'])
+        self.device_label.configure(text='Прибор (серийный номер): \n' + self.data['device'])
         self.device_label.grid(row=0, column=3)
 
         self.fields_listbox_frame.grid(row=1, column=0)
