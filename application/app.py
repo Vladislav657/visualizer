@@ -36,7 +36,7 @@ class App:
 
     def load_data(self):
         self.toolbar = Toplevel()
-        self.toolbar.title("Выбор данных")
+        self.toolbar.title("Загрузить данные")
         self.toolbar.iconbitmap('graph-5_icon.ico')
         self.toolbar.geometry("1000x500")
         self.toolbar.protocol("WM_DELETE_WINDOW", self.dismiss_toolbar)  # перехватываем нажатие на крестик
@@ -46,11 +46,11 @@ class App:
         self.way_to_load_data.grid(row=0, column=0)
 
         self.way = StringVar(value='file')
-        self.load_from_file = ttk.Radiobutton(self.way_to_load_data, text='Загрузить данные с файла', value='file',
+        self.load_from_file = ttk.Radiobutton(self.way_to_load_data, text='С файла', value='file',
                                               variable=self.way, command=self.way_selected)
         self.load_from_file.pack(anchor=NW, fill=X, padx=5, pady=5)
 
-        self.load_from_server = ttk.Radiobutton(self.way_to_load_data, text='Загрузить данные с сервера',
+        self.load_from_server = ttk.Radiobutton(self.way_to_load_data, text='С сервера',
                                                 value='server', variable=self.way, command=self.way_selected)
         self.load_from_server.pack(anchor=NW, fill=X, padx=5, pady=5)
 
@@ -219,9 +219,11 @@ class App:
                 bar_count = 0
                 width = 0.3
                 for serial in serials:
+                    if field not in self.data['data'][device]['serials'][serial]['fields'].keys():
+                        continue
                     data_for_graph = self.data['data'][device]['serials'][serial]
                     x, y = get_data_for_period(data_for_graph, date_1, date_2, field)
-                    x, y = average_request(x, y, average) # "линейный", "столбчатый", "точечный"
+                    x, y = average_request(x, y, average)  # "линейный", "столбчатый", "точечный"
                     if graph_type == "линейный":
                         ax.plot(x, y, label=f"{device} ({serial})")
                     elif graph_type == "столбчатый":
@@ -290,6 +292,14 @@ class App:
                 serials.append(self.serials_checkbutton[k][1]['text'])
         return serials
 
+    def is_field_for_serials(self, index):
+        serials = self.get_serials()
+        for serial in serials:
+            serial_fields = list(self.data['data'][self.data['var'].get()]['serials'][serial]['fields'].keys())
+            if self.data['data'][self.data['var'].get()]['fields'][index] in serial_fields:
+                return True
+        return False
+
     def serial_selected(self):
         if self.is_serial_selected():
             serials_list = self.get_serials()
@@ -332,6 +342,9 @@ class App:
             serials_list = self.get_serials()
             dates = get_min_max_date('JSON', self.data['data'][self.data['var'].get()], serials_list)
             for i in selected_indices:
+                if not self.is_field_for_serials(i):
+                    self.fields_listbox.select_clear(i)
+                    showerror(title="Ошибка", message="Данные этого поля отсутствуют для выбранных серийных номеров")
                 if i not in self.fields_dict.keys():
                     self.add_field(i, self.data['data'][self.data['var'].get()]['fields'][i], dates)
         else:

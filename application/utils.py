@@ -88,8 +88,9 @@ def get_min_max_date(filetype: str, device: dict, serials: list = None) -> tuple
 def get_data_for_period(data: dict, date_1: str, date_2: str, field: str) -> tuple:
     x = []
     y = []
+    field_len = len(data['fields'][field])
     for i, date in enumerate(data['period']):
-        if date_1 <= date[:-9] <= date_2:
+        if date_1 <= date[:-9] <= date_2 and i < field_len:
             x.append(date)
             y.append(data['fields'][field][i])
     return x, y
