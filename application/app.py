@@ -56,12 +56,10 @@ class App:
         self.choose_device_combobox = ttk.Combobox(self.toolbar, state='readonly')
 
         self.choose_serials = Frame(self.toolbar, relief=SOLID)
-        self.serials_label = ttk.Label(self.choose_serials, text="Выбирете серийные номера:")
+        self.serials_label = ttk.Label(self.choose_serials, text="Выберите серийные номера:")
         self.serials_checkbutton = []
 
         self.fields_listbox_frame = Frame(self.toolbar, relief=SOLID)
-        self.fields_label = ttk.Label(self.fields_listbox_frame, text="Выбирете поля:")
-        self.fields_choose_all = ttk.Checkbutton()
         self.fields_listbox = Listbox(self.fields_listbox_frame, width=30, selectmode=MULTIPLE, exportselection=False)
         self.fields_listbox_scrollbar = ttk.Scrollbar(orient="vertical", command=self.fields_listbox.yview,
                                                       master=self.fields_listbox_frame)
@@ -71,6 +69,10 @@ class App:
         self.fields_label = ttk.Label(master=self.chosen_fields, text="Поля для обработки:")
         self.fields_dict = {}
 
+        self.effective_temp_var = IntVar()
+        self.effective_temp_checkbutton = ttk.Checkbutton(master=self.toolbar, text='Включить эффективную температуру',
+                                                          variable=self.effective_temp_var,
+                                                          command=self.effective_temp_selected, state=DISABLED)
         self.build_graphs_button = ttk.Button(self.toolbar, text='Построить графики', command=self.build_graphs,
                                               state=DISABLED)
         self.load_from_file_tools()
@@ -178,31 +180,32 @@ class App:
                     data_for_graph = self.data['data'][device]['serials'][serial]
                     x, y = get_data_for_period(data_for_graph, date_1, date_2, field)
                     x, y = average_request(x, y, average)  # "линейный", "столбчатый", "точечный"
+                    x_range = np.arange(len(x))
                     if graph_type == "линейный":
-                        ax.plot(x, y, label=f"{device} ({serial})")
+                        ax.plot(x_range, y, label=f"{device} ({serial})")
                     elif graph_type == "столбчатый":
-                        x_range = np.arange(len(x))
                         ax.bar(x_range - 2 * bar_count * width / len_serials, y, width, label=f"{device} ({serial})")
                         bar_count += 1
-                        ax.set_xticks(x_range)
-                        ax.set_xticklabels(x)
                     elif graph_type == "точечный":
-                        ax.scatter(x, y, label=f"{device} ({serial})")
+                        ax.scatter(x_range, y, label=f"{device} ({serial})")
+                    ax.set_xticks(x_range, x)
 
             elif self.data['type'] == 'CSV':
                 x, y = get_data_for_period(self.data['data'], date_1, date_2, field)
                 x, y = average_request(x, y, average)
+                x_range = np.arange(len(x))
                 if graph_type == "линейный":
-                    ax.plot(x, y, label=device)
+                    ax.plot(x_range, y, label=device)
                 elif graph_type == "столбчатый":
-                    ax.bar(x, y, label=device)
+                    ax.bar(x_range, y, label=device)
                 elif graph_type == "точечный":
-                    ax.scatter(x, y, label=device)
+                    ax.scatter(x_range, y, label=device)
+                ax.set_xticks(x_range, x)
 
             fig.suptitle(f"{field} с {date_1} по {date_2} ({average}, {graph_type})")
             ax.legend()
             ax.xaxis.set_major_locator(MaxNLocator(nbins=7))
-            ax.set_xlabel('DateTime')
+            ax.set_xlabel('date_time')
             ax.set_ylabel(field)
             ax.grid(True)
 
@@ -220,11 +223,12 @@ class App:
         graphs_canvas.configure(scrollregion=graphs_canvas.bbox('all'))
         self.dismiss_toolbar()
 
+    def effective_temp_selected(self):
+        pass # продолжить
+
     def device_selected(self, event):
         self.configure_serials()
         self.fields_listbox.delete(0, END)
-        self.fields_listbox.configure(listvariable=
-                                      Variable(value=list(self.data['data'][self.data['var'].get()]['fields'])))
         self.clear_fields_dict()
         self.build_graphs_button.configure(state=DISABLED)
 
@@ -258,7 +262,7 @@ class App:
         for field in selected_fields:
             if field not in self.fields_listbox.get(0, END):
                 self.remove_field(field)
-        if self.fields_listbox.size() == 0:
+        if self.fields_listbox.size() == 0 or len(self.fields_listbox.curselection()) == 0:
             self.build_graphs_button.configure(state=DISABLED)
 
     def configure_serials(self):
@@ -444,7 +448,8 @@ class App:
         self.chosen_fields.grid(row=1, column=1, columnspan=3)
         self.fields_label.pack(anchor=NW, fill=X, padx=5, pady=5)
 
-        self.build_graphs_button.grid(row=2, column=0)
+        self.effective_temp_checkbutton.grid(row=2, column=0)
+        self.build_graphs_button.grid(row=2, column=1)
 
         self.create_choose_device_combobox()
         self.configure_serials()
@@ -461,7 +466,8 @@ class App:
         self.chosen_fields.grid(row=1, column=0, columnspan=3)
         self.fields_label.pack(anchor=NW, fill=X, padx=5, pady=5)
 
-        self.build_graphs_button.grid(row=1, column=3)
+        self.effective_temp_checkbutton.grid(row=1, column=3)
+        self.build_graphs_button.grid(row=2, column=0)
 
         self.create_fields_listbox()
 
