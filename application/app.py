@@ -87,9 +87,9 @@ class App:
         self.graphs_notebook.pack(fill=BOTH, expand=True)
 
         if len(list(self.data.keys())) > 0:
-            if self.data['type'] == 'JSON':
+            if self.data['var'] is not None:
                 self.map_json_file_tools()
-            elif self.data['type'] == 'CSV':
+            else:
                 self.map_csv_file_tools()
 
     def create_window(self):
@@ -138,7 +138,7 @@ class App:
 
         self.graphs_frames.append((tab_frame, graphs_canvas, graphs_frame, graphs_scrollbar))
         serials = None
-        if self.data['type'] == 'JSON':
+        if self.data['var'] is not None:
             device = self.data['var'].get()
             serials = self.get_serials()
             self.graphs_notebook.add(tab_frame, text=f"{device} ({', '.join(serials)})")
@@ -160,8 +160,8 @@ class App:
                 close_graphs()
                 return None
             else:
-                device_dict = self.data['data'][device] if self.data['type'] == 'JSON' else self.data['data']
-                dates = get_min_max_date(self.data['type'], device_dict, serials)
+                device_dict = self.data['data'][device] if self.data['var'] is not None else self.data['data']
+                dates = get_min_max_date(device_dict, serials)
                 if date_1 < dates[0] or date_2 > dates[1]:
                     showerror('Ошибка', message='Выход за диапазон дат')
                     close_graphs()
@@ -170,14 +170,14 @@ class App:
             average = self.fields_dict[field][1][0].get()
             graph_type = self.fields_dict[field][1][1].get()
 
-            if self.data['type'] == 'JSON':
+            if self.data['var'] is not None:
                 len_serials = len(serials)
                 bar_count = 0
                 width = 0.3
                 for serial in serials:
-                    if field not in self.data['data'][device]['serials'][serial]['fields'].keys():
+                    if field not in self.data['data'][device][serial]['fields'].keys():
                         continue
-                    data_for_graph = self.data['data'][device]['serials'][serial]
+                    data_for_graph = self.data['data'][device][serial]
                     x, y = get_data_for_period(data_for_graph, date_1, date_2, field)
                     x, y = average_request(x, y, average)  # "линейный", "столбчатый", "точечный"
                     x_range = np.arange(len(x))
@@ -190,7 +190,7 @@ class App:
                         ax.scatter(x_range, y, label=f"{device} ({serial})")
                     ax.set_xticks(x_range, x)
 
-            elif self.data['type'] == 'CSV':
+            else:
                 x, y = get_data_for_period(self.data['data'], date_1, date_2, field)
                 x, y = average_request(x, y, average)
                 x_range = np.arange(len(x))
@@ -224,11 +224,35 @@ class App:
         self.dismiss_toolbar()
 
     def effective_temp_selected(self):
-        pass # продолжить
+        if self.effective_temp_var.get() == 1:
+            if self.data['var'] is not None:
+                serials = self.get_serials()
+                effective_temp_dict = get_effective_temp(self.data['data'][self.data['var'].get()], serials)
+                for serial in effective_temp_dict.keys():
+                    for field in effective_temp_dict[serial].keys():
+                        if field not in self.fields_listbox.get(0, END):
+                            self.fields_listbox.insert(0, field)
+                        if field not in self.data['data'][self.data['var'].get()][serial]['fields'].keys():
+                            self.data['data'][self.data['var'].get()][serial]['fields'][field] \
+                                = effective_temp_dict[serial][field]
+            else:
+                effective_temp_dict = get_effective_temp(self.data['data'])
+                for field in effective_temp_dict.keys():
+                    self.fields_listbox.insert(0, field)
+                    if field not in self.data['data']['fields'].keys():
+                        self.data['data']['fields'][field] = effective_temp_dict[field]
+        else:
+            while '_effective_temp' in self.fields_listbox.get(0):
+                self.remove_field(self.fields_listbox.get(0))
+                self.fields_listbox.delete(0)
+            if len(self.fields_listbox.curselection()) == 0:
+                self.build_graphs_button.configure(state=DISABLED)
 
     def device_selected(self, event):
         self.configure_serials()
         self.fields_listbox.delete(0, END)
+        self.effective_temp_checkbutton.configure(state=DISABLED)
+        self.effective_temp_var.set(0)
         self.clear_fields_dict()
         self.build_graphs_button.configure(state=DISABLED)
 
@@ -244,18 +268,14 @@ class App:
                 serials.append(self.serials_checkbutton[k][1]['text'])
         return serials
 
-    def is_field_for_serials(self, index):
-        serials = self.get_serials()
-        for serial in serials:
-            serial_fields = list(self.data['data'][self.data['var'].get()]['serials'][serial]['fields'].keys())
-            if self.data['data'][self.data['var'].get()]['fields'][index] in serial_fields:
-                return True
-        return False
-
     def serial_selected(self):
         selected_fields = [self.fields_listbox.get(i) for i in self.fields_listbox.curselection()]
         self.create_fields_listbox()
-
+        if temp_humidity_in_data(list(self.fields_listbox.get(0, END))):
+            self.effective_temp_checkbutton.configure(state=NORMAL)
+        else:
+            self.effective_temp_checkbutton.configure(state=DISABLED)
+            self.effective_temp_var.set(0)
         for i in range(self.fields_listbox.size()):
             if self.fields_listbox.get(i) in selected_fields:
                 self.fields_listbox.select_set(i)
@@ -270,7 +290,7 @@ class App:
             self.serials_checkbutton[j][1].destroy()
         self.serials_checkbutton.clear()
 
-        serials = sorted(list(self.data['data'][self.data['var'].get()]['serials'].keys()))
+        serials = sorted(list(self.data['data'][self.data['var'].get()].keys()))
         for i in range(len(serials)):
             serial_var = IntVar()
             self.serials_checkbutton.append((serial_var, ttk.Checkbutton(master=self.choose_serials,
@@ -284,9 +304,9 @@ class App:
 
         if self.data['var'] is not None:
             serials_list = self.get_serials()
-            dates = get_min_max_date('JSON', self.data['data'][self.data['var'].get()], serials_list)
+            dates = get_min_max_date(self.data['data'][self.data['var'].get()], serials_list)
         else:
-            dates = get_min_max_date('CSV', self.data['data'])
+            dates = get_min_max_date(self.data['data'])
 
         for field in fields:
             if field not in self.fields_dict.keys():
@@ -304,17 +324,23 @@ class App:
 
     def create_fields_listbox(self):
         self.fields_listbox.delete(0, END)
+        fields = []
         if self.data['var'] is not None:
             serials = self.get_serials()
-            fields = []
             for serial in serials:
-                fields_for_serial = self.data['data'][self.data['var'].get()]['serials'][serial]['fields'].keys()
+                fields_for_serial = self.data['data'][self.data['var'].get()][serial]['fields'].keys()
                 for field in fields_for_serial:
+                    if '_effective_temp' in field and self.effective_temp_var.get() == 0:
+                        continue
                     if field not in fields:
                         fields.append(field)
-            self.fields_listbox.configure(listvariable=Variable(value=fields))
         else:
-            self.fields_listbox.configure(listvariable=Variable(value=list(self.data['data']['fields'].keys())))
+            for field in list(self.data['data']['fields'].keys()):
+                if '_effective_temp' in field and self.effective_temp_var.get() == 0:
+                    continue
+                if field not in fields:
+                    fields.append(field)
+        self.fields_listbox.configure(listvariable=Variable(value=fields))
         self.fields_listbox.bind("<<ListboxSelect>>", self.field_selected)
 
     def clear_fields_dict(self):
@@ -325,6 +351,8 @@ class App:
             del self.fields_dict[key]
 
     def remove_field(self, key):
+        if key not in self.fields_dict.keys():
+            return None
         for j in range(len(self.fields_dict[key][0])):
             self.fields_dict[key][0][j].destroy()
         del self.fields_dict[key]
@@ -392,7 +420,6 @@ class App:
         self.device_label.grid_forget()
 
         self.data['data'] = data_dict
-        self.data['type'] = 'JSON'
         self.data['name'] = filename
         self.data['var'] = StringVar(value=list(data_dict.keys())[0])
 
@@ -424,9 +451,7 @@ class App:
         self.serials_checkbutton.clear()
 
         self.data['data'] = data_dict
-        self.data['type'] = 'CSV'
         self.data['name'] = filename
-        self.data['device'] = data_dict['device']
         self.data['var'] = None
 
         self.clear_fields_dict()
@@ -456,7 +481,7 @@ class App:
 
     def map_csv_file_tools(self):
         self.filename_label.configure(text=self.data['name'])
-        self.device_label.configure(text='Прибор (серийный номер): \n' + self.data['device'])
+        self.device_label.configure(text='Прибор (серийный номер): \n' + self.data['data']['device'])
         self.device_label.grid(row=0, column=2)
 
         self.fields_listbox_frame.grid(row=0, column=3)
@@ -469,6 +494,10 @@ class App:
         self.effective_temp_checkbutton.grid(row=1, column=3)
         self.build_graphs_button.grid(row=2, column=0)
 
+        if temp_humidity_in_data(list(self.data['data']['fields'].keys())):
+            self.effective_temp_checkbutton.configure(state=NORMAL)
+        else:
+            self.effective_temp_checkbutton.configure(state=DISABLED)
         self.create_fields_listbox()
 
     def run(self):

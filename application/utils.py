@@ -21,30 +21,22 @@ def get_json_data(data: dict) -> dict:
         if name not in devices.keys():
             devices[name] = {}
 
-        if 'fields' not in devices[name].keys():
-            devices[name]['fields'] = []
+        if serial not in devices[name].keys():
+            devices[name][serial] = {}
 
-        if 'serials' not in devices[name].keys():
-            devices[name]['serials'] = {}
+        if 'period' not in devices[name][serial].keys():
+            devices[name][serial]['period'] = []
+        devices[name][serial]['period'].append(date)
 
-        if serial not in devices[name]['serials'].keys():
-            devices[name]['serials'][serial] = {}
-
-        if 'period' not in devices[name]['serials'][serial].keys():
-            devices[name]['serials'][serial]['period'] = []
-        devices[name]['serials'][serial]['period'].append(date)
-
-        if 'fields' not in devices[name]['serials'][serial].keys():
-            devices[name]['serials'][serial]['fields'] = {}
+        if 'fields' not in devices[name][serial].keys():
+            devices[name][serial]['fields'] = {}
 
         for field in fields.keys():
             if not is_digit(fields[field]) or field == 'system_Serial':
                 continue
-            if field not in devices[name]['fields']:
-                devices[name]['fields'].append(field)
-            if field not in devices[name]['serials'][serial]['fields'].keys():
-                devices[name]['serials'][serial]['fields'][field] = []
-            devices[name]['serials'][serial]['fields'][field].append(float(fields[field]))
+            if field not in devices[name][serial]['fields'].keys():
+                devices[name][serial]['fields'][field] = []
+            devices[name][serial]['fields'][field].append(float(fields[field]))
 
     return devices
 
@@ -73,15 +65,15 @@ def get_csv_data(data: list) -> dict:
     return fields
 
 
-def get_min_max_date(filetype: str, device: dict, serials: list = None) -> tuple:
+def get_min_max_date(device: dict, serials: list = None) -> tuple:
     min_dates = []
     max_dates = []
-    if filetype == 'JSON':
+    if serials is not None:
         for serial in serials:
-            min_dates.append(device['serials'][serial]['period'][0])
-            max_dates.append(device['serials'][serial]['period'][-1])
+            min_dates.append(device[serial]['period'][0])
+            max_dates.append(device[serial]['period'][-1])
         return min(min_dates)[:-9], max(max_dates)[:-9]
-    elif filetype == 'CSV':
+    else:
         return device['period'][0][:-9], device['period'][-1][:-9]
 
 
@@ -166,3 +158,35 @@ def average_request(period: list, data: list, request: str) -> tuple:
         return average_a_day(period, data, min)
     elif request == "max за сутки":
         return average_a_day(period, data, max)
+
+
+def temp_humidity_in_data(fields: list) -> bool:
+    for field in fields:
+        if '_temp' in field and field.replace('_temp', '_humidity') in fields:
+            return True
+    return False
+
+
+def get_effective_temp(device: dict, serials: list = None) -> dict:
+    et_dict = {}
+    if serials is not None:
+        for serial in serials:
+            et_dict[serial] = {}
+            fields = list(device[serial]['fields'].keys())
+            for field in fields:
+                if '_temp' in field and field.replace('_temp', '_humidity') in fields:
+                    temp = device[serial]['fields'][field]
+                    hum = device[serial]['fields'][field.replace('_temp', '_humidity')]
+                    et_field = field.replace('_temp', '_effective_temp')
+                    effective_temp = [temp[i] - 0.4 * (temp[i] - 10) * (1 - hum[i] / 100) for i in range(len(temp))]
+                    et_dict[serial][et_field] = effective_temp
+    else:
+        fields = list(device['fields'].keys())
+        for field in fields:
+            if '_temp' in field and field.replace('_temp', '_humidity') in fields:
+                temp = device['fields'][field]
+                hum = device['fields'][field.replace('_temp', '_humidity')]
+                et_field = field.replace('_temp', '_effective_temp')
+                effective_temp = [temp[i] - 0.4 * (temp[i] - 10) * (1 - hum[i] / 100) for i in range(len(temp))]
+                et_dict[et_field] = effective_temp
+    return et_dict
