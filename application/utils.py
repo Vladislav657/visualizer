@@ -1,3 +1,23 @@
+import re
+
+
+months = {1: 31, 2: 28, 3: 31, 4: 30, 5: 31, 6: 30, 7: 31, 8: 31, 9: 30, 10: 31, 11: 30, 12: 31}
+
+
+def is_leap_year(year):
+    return year % 4 == 0 and year % 100 != 0 or year % 400 == 0
+
+
+def is_valid_date(date):
+    pattern = re.compile(r'\d{4}-\d\d-\d\d')
+    if not (pattern.match(date) and len(date) == 10):
+        return False
+    months[2] = 29 if is_leap_year(int(date[:4])) else 28
+    if 1 <= int(date[5:7]) <= 12 and 1 <= int(date[8:10]) <= months[int(date[5:7])]:
+        return True
+    return False
+
+
 def is_digit(string: str) -> bool:
     if string.isdigit():
         return True
@@ -7,6 +27,25 @@ def is_digit(string: str) -> bool:
             return True
         except ValueError:
             return False
+
+
+def is_valid_record(record: tuple) -> bool:
+    if not is_digit(record[0]):
+        return False
+    if "Date" not in record[1] or "uName" not in record[1] or "serial" not in record[1] or \
+       "data" not in record[1]:
+        return False
+    return True
+
+
+def is_valid_json(data: dict) -> bool:
+    return all(map(is_valid_record, data.items()))
+
+
+def is_valid_csv(data: list) -> bool:
+    if len(data) <= 2 or 'Прибор: ' not in data[0] or ' Интервал: ' not in data[0] or 'Date' not in data[1]:
+        return False
+    return True
 
 
 def get_json_data(data: dict) -> dict:
@@ -42,14 +81,8 @@ def get_json_data(data: dict) -> dict:
 
 
 def get_csv_data(data: list) -> dict:
-    fields = {}
+    fields = {'device': data[0][1], 'period': []}
 
-    if len(data) <= 2:
-        return fields
-
-    fields['device'] = data[0][1]
-
-    fields['period'] = []
     for row in data[2:]:
         fields['period'].append(row[0])
 
@@ -107,24 +140,35 @@ def average_an_hour(period: list, data: list) -> tuple:
     return x, y
 
 
+def date_to_hours(date: str, min_year: int) -> int: # 2023-11-02 04:19:15
+    months[2] = 29 if is_leap_year(int(date[:4])) else 28
+    result = 0
+    for year in range(min_year, int(date[:4])):
+        if is_leap_year(year):
+            result += 365 * 24
+    for month in range(1, int(date[5:7])):
+        result += months[month] * 24
+    result += int(date[8:10]) * 24 + int(date[11:13])
+    return result
+
+
 def average_three_hours(period: list, data: list) -> tuple:
-    average = {}
-    first = period[0][:-9]
-    last = period[-1][:-6]
-
-    hour = int(period[0][-8:-6])
-    i = 0
-    while f"{first} {str(hour + i).rjust(2, '0')}" <= last:
-        average[f"{first} {str(hour + i).rjust(2, '0')}"] = []
-        i += 3
-
-    x = list(average.keys())
-    i = 0
-    for j, val in enumerate(data):
-        if period[i][:-6] >= x[i + 1]:
-            i += 1
-        average[x[i]].append(val)
-    y = [ave(value) for value in average.values()]
+    min_year = int(period[0][:4])
+    current_hours = date_to_hours(period[0][:-6], min_year)
+    current_date = period[0][:-6]
+    average = {current_date: []}
+    for i, date in enumerate(period):
+        hour = date[:-6]
+        if date_to_hours(hour, min_year) - current_hours >= 3:
+            average[hour] = []
+            current_hours = date_to_hours(hour, min_year)
+            current_date = hour
+        average[current_date].append(data[i])
+    x = []
+    y = []
+    for key, val in average.items():
+        x.append(key)
+        y.append(ave(val))
     return x, y
 
 

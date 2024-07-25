@@ -38,7 +38,7 @@ class App:
         self.toolbar = Toplevel()
         self.toolbar.title("Загрузить данные")
         self.toolbar.iconbitmap('graph-5_icon.ico')
-        self.toolbar.geometry("1000x500")
+        self.toolbar.geometry("1100x500")
         self.toolbar.protocol("WM_DELETE_WINDOW", self.dismiss_toolbar)  # перехватываем нажатие на крестик
         self.create_toolbar()
         self.toolbar.grab_set()
@@ -50,13 +50,16 @@ class App:
         self.open_file_button = ttk.Button(master=self.open_file_frame, text='Открыть файл', command=self.open_file)
 
         self.filename_label = ttk.Label(self.toolbar, text='Здесь отобразится путь к файлу')
+        self.date_label = ttk.Label(self.toolbar)
 
         self.device_label = ttk.Label(self.toolbar)
 
-        self.choose_device_combobox = ttk.Combobox(self.toolbar, state='readonly')
+        self.choose_device_frame = Frame(self.toolbar, relief=SOLID)
+        self.choose_device_label = ttk.Label(self.choose_device_frame, text='Выберите прибор')
+        self.choose_device_combobox = ttk.Combobox(self.choose_device_frame, state='readonly')
 
         self.choose_serials = Frame(self.toolbar, relief=SOLID)
-        self.serials_label = ttk.Label(self.choose_serials, text="Выберите серийные номера:")
+        self.serials_label = ttk.Label(self.choose_serials, text="Выберите серийные номера")
         self.serials_checkbutton = []
 
         self.fields_listbox_frame = Frame(self.toolbar, relief=SOLID)
@@ -70,7 +73,8 @@ class App:
         self.fields_dict = {}
 
         self.effective_temp_var = IntVar()
-        self.effective_temp_checkbutton = ttk.Checkbutton(master=self.toolbar, text='Включить эффективную температуру',
+        self.effective_temp_checkbutton = ttk.Checkbutton(master=self.toolbar, text='Добавить эффективную температуру '
+                                                                                    'в список полей',
                                                           variable=self.effective_temp_var,
                                                           command=self.effective_temp_selected, state=DISABLED)
         self.build_graphs_button = ttk.Button(self.toolbar, text='Построить графики', command=self.build_graphs,
@@ -152,10 +156,48 @@ class App:
         for i in selected_indices:
             fig = Figure(figsize=(5, 4), dpi=100)
             ax = fig.add_subplot(111)
+
+            def set_effective_temp(x_list, y_min, y_max):
+                if '_effective_temp' in field:
+                    alpha = 0.3
+                    font = 15
+                    x_min = min(x_list)
+                    if -30 <= y_min <= -24 or -30 <= y_max <= -24 or y_min <= -30 <= -24 <= y_max:
+                        ax.fill_between(x_list, -30, -24, color='#00008B', alpha=alpha)
+                        ax.text(x_min, -27, 'Крайне холодно', color='#191970', fontsize=font)
+                    if -24 <= y_min <= -12 or -24 <= y_max <= -12 or y_min <= -24 <= -12 <= y_max:
+                        ax.fill_between(x_list, -24, -12, color='#0000FF', alpha=alpha)
+                        ax.text(x_min, -18, 'Очень холодно', color='#0000CD', fontsize=font)
+                    if -12 <= y_min <= 0 or -12 <= y_max <= 0 or y_min <= -12 <= 0 <= y_max:
+                        ax.fill_between(x_list, -12, 0, color='#00BFFF', alpha=alpha)
+                        ax.text(x_min, -6, 'Холодно', color='#1E90FF', fontsize=font)
+                    if 0 <= y_min <= 6 or 0 <= y_max <= 6 or y_min <= 0 <= 6 <= y_max:
+                        ax.fill_between(x_list, 0, 6, color='#00FA9A', alpha=alpha)
+                        ax.text(x_min, 3, 'Умеренно', color='#00FF7F', fontsize=font)
+                    if 6 <= y_min <= 12 or 6 <= y_max <= 12 or y_min <= 6 <= 12 <= y_max:
+                        ax.fill_between(x_list, 6, 12, color='#00FF00', alpha=alpha)
+                        ax.text(x_min, 9, 'Прохладно', color='#32CD32', fontsize=font)
+                    if 12 <= y_min <= 18 or 12 <= y_max <= 18 or y_min <= 12 <= 18 <= y_max:
+                        ax.fill_between(x_list, 12, 18, color='#FFFF00', alpha=alpha)
+                        ax.text(x_min, 15, 'Умеренно тепло', color='#FFD700', fontsize=font)
+                    if 18 <= y_min <= 24 or 18 <= y_max <= 24 or y_min <= 18 <= 24 <= y_max:
+                        ax.fill_between(x_list, 18, 24, color='#FF8C00', alpha=alpha)
+                        ax.text(x_min, 21, 'Тепло', color='#FF7F50', fontsize=font)
+                    if 24 <= y_min <= 30 or 24 <= y_max <= 30 or y_min <= 24 <= 30 <= y_max:
+                        ax.fill_between(x_list, 24, 30, color='#FF4500', alpha=alpha)
+                        ax.text(x_min, 27, 'Жарко', color='#B22222', fontsize=font)
+                    if 30 <= y_max:
+                        ax.fill_between(x_list, 30, y_max + 5, color='#FF0000', alpha=alpha)
+                        ax.text(x_min, 33, 'Очень жарко', color='#8B0000', fontsize=font)
+
             field = self.fields_listbox.get(i)
             date_1 = self.fields_dict[field][0][2].get()
             date_2 = self.fields_dict[field][0][3].get()
-            if date_1 > date_2:
+            if not is_valid_date(date_1.strip()) or not is_valid_date(date_2.strip()):
+                showerror('Ошибка', message='Не валидная дата')
+                close_graphs()
+                return None
+            elif date_1 > date_2:
                 showerror('Ошибка', message='Начальная дата не может быть позднее конечной')
                 close_graphs()
                 return None
@@ -169,6 +211,10 @@ class App:
 
             average = self.fields_dict[field][1][0].get()
             graph_type = self.fields_dict[field][1][1].get()
+            x_min_list = []
+            x_max_list = []
+            y_min_list = []
+            y_max_list = []
 
             if self.data['var'] is not None:
                 len_serials = len(serials)
@@ -181,6 +227,8 @@ class App:
                     x, y = get_data_for_period(data_for_graph, date_1, date_2, field)
                     x, y = average_request(x, y, average)  # "линейный", "столбчатый", "точечный"
                     x_range = np.arange(len(x))
+                    if len(x) == 0:
+                        continue
                     if graph_type == "линейный":
                         ax.plot(x_range, y, label=f"{device} ({serial})")
                     elif graph_type == "столбчатый":
@@ -189,6 +237,10 @@ class App:
                     elif graph_type == "точечный":
                         ax.scatter(x_range, y, label=f"{device} ({serial})")
                     ax.set_xticks(x_range, x)
+                    x_min_list.append(min(x_range))
+                    x_max_list.append(max(x_range))
+                    y_min_list.append(min(y))
+                    y_max_list.append(max(y))
 
             else:
                 x, y = get_data_for_period(self.data['data'], date_1, date_2, field)
@@ -201,12 +253,17 @@ class App:
                 elif graph_type == "точечный":
                     ax.scatter(x_range, y, label=device)
                 ax.set_xticks(x_range, x)
+                x_min_list.append(min(x_range))
+                x_max_list.append(max(x_range))
+                y_min_list.append(min(y))
+                y_max_list.append(max(y))
 
             fig.suptitle(f"{field} с {date_1} по {date_2} ({average}, {graph_type})")
             ax.legend()
             ax.xaxis.set_major_locator(MaxNLocator(nbins=7))
             ax.set_xlabel('date_time')
             ax.set_ylabel(field)
+            set_effective_temp(np.arange(min(x_min_list), max(x_max_list)), min(y_min_list), max(y_max_list))
             ax.grid(True)
 
             canvas = FigureCanvasTkAgg(fig, master=graphs_frame)
@@ -365,7 +422,7 @@ class App:
         field_frame = Frame(self.chosen_fields)
         field_frame.pack(anchor=NW, fill=X, padx=5, pady=5)
 
-        label = ttk.Label(field_frame, text=field)
+        label = ttk.Label(field_frame, text=field, foreground='blue')
         label.pack(side=LEFT, padx=5, pady=5)
 
         from_label = ttk.Label(field_frame, text='с')
@@ -411,21 +468,24 @@ class App:
             showerror(title="Ошибка", message="Файл не загружен")
             return None
 
-        data_dict = get_json_data(data)
-
-        if (len(list(data_dict.keys()))) == 0:
-            showerror(title="Ошибка", message="Файл пуст")
+        if not is_valid_json(data):
+            showerror(title="Ошибка", message="Не валидный файл")
             return None
+
+        data_dict = get_json_data(data)
 
         self.device_label.grid_forget()
 
         self.data['data'] = data_dict
         self.data['name'] = filename
         self.data['var'] = StringVar(value=list(data_dict.keys())[0])
+        self.data['first_date'] = data[list(data.keys())[0]]['Date']
+        self.data['last_date'] = data[list(data.keys())[-1]]['Date']
 
         self.clear_fields_dict()
+        self.fields_listbox.delete(0, END)
         self.build_graphs_button.configure(state=DISABLED)
-
+        self.effective_temp_var.set(0)
         self.map_json_file_tools()
 
     def open_csv_file(self):
@@ -437,13 +497,16 @@ class App:
             showerror(title="Ошибка", message="Файл не загружен")
             return None
 
-        data_dict = get_csv_data(data)
-
-        if (len(list(data_dict.keys()))) == 0:
-            showerror(title="Ошибка", message="Файл пуст")
+        if not is_valid_csv(data):
+            showerror(title="Ошибка", message="Не валидный файл")
             return None
 
-        self.choose_device_combobox.grid_forget()
+        data_dict = get_csv_data(data)
+
+        self.choose_device_frame.grid_forget()
+        self.choose_device_label.pack_forget()
+        self.choose_device_combobox.pack_forget()
+
         self.choose_serials.grid_forget()
         self.serials_label.pack_forget()
         for j in range(len(self.serials_checkbutton)):
@@ -453,18 +516,50 @@ class App:
         self.data['data'] = data_dict
         self.data['name'] = filename
         self.data['var'] = None
+        self.data['first_date'] = data_dict['period'][0]
+        self.data['last_date'] = data_dict['period'][-1]
 
         self.clear_fields_dict()
         self.build_graphs_button.configure(state=DISABLED)
-
+        self.effective_temp_var.set(0)
         self.map_csv_file_tools()
 
     def map_json_file_tools(self):
         self.filename_label.configure(text=self.data['name'])
-        self.choose_device_combobox.grid(row=0, column=2)
 
-        self.choose_serials.grid(row=0, column=3)
+        self.date_label.configure(text=f"Начальная дата: {self.data['first_date']}\n"
+                                       f"Конечная дата: {self.data['last_date']}")
+        self.date_label.grid(row=0, column=2)
+
+        self.choose_device_frame.grid(row=0, column=3)
+        self.choose_device_label.pack(anchor=NW, fill=X, padx=5, pady=5)
+        self.choose_device_combobox.pack(anchor=NW, fill=X, padx=5, pady=5)
+
+        self.choose_serials.grid(row=1, column=0)
         self.serials_label.pack(anchor=NW, fill=X, padx=5, pady=5)
+
+        self.fields_listbox_frame.grid(row=1, column=1)
+        self.fields_listbox.pack(side=LEFT, fill=BOTH, expand=True)
+        self.fields_listbox_scrollbar.pack(side=RIGHT, fill=Y)
+
+        self.chosen_fields.grid(row=1, column=2, columnspan=2)
+        self.fields_label.pack(anchor=NW, fill=X, padx=5, pady=5)
+
+        self.effective_temp_checkbutton.grid(row=2, column=0, columnspan=2)
+        self.build_graphs_button.grid(row=2, column=2)
+
+        self.create_choose_device_combobox()
+        self.configure_serials()
+
+    def map_csv_file_tools(self):
+        self.filename_label.configure(text=self.data['name'])
+
+        self.date_label.configure(text=f"Начальная дата: {self.data['first_date']}\n"
+                                       f"Конечная дата: {self.data['last_date']}")
+        self.date_label.grid(row=0, column=2)
+
+        self.device_label.configure(text='Прибор (серийный номер): \n' + self.data['data']['device'])
+        self.device_label.grid(row=0, column=3)
 
         self.fields_listbox_frame.grid(row=1, column=0)
         self.fields_listbox.pack(side=LEFT, fill=BOTH, expand=True)
@@ -473,26 +568,8 @@ class App:
         self.chosen_fields.grid(row=1, column=1, columnspan=3)
         self.fields_label.pack(anchor=NW, fill=X, padx=5, pady=5)
 
-        self.effective_temp_checkbutton.grid(row=2, column=0)
-        self.build_graphs_button.grid(row=2, column=1)
-
-        self.create_choose_device_combobox()
-        self.configure_serials()
-
-    def map_csv_file_tools(self):
-        self.filename_label.configure(text=self.data['name'])
-        self.device_label.configure(text='Прибор (серийный номер): \n' + self.data['data']['device'])
-        self.device_label.grid(row=0, column=2)
-
-        self.fields_listbox_frame.grid(row=0, column=3)
-        self.fields_listbox.pack(side=LEFT, fill=BOTH, expand=True)
-        self.fields_listbox_scrollbar.pack(side=RIGHT, fill=Y)
-
-        self.chosen_fields.grid(row=1, column=0, columnspan=3)
-        self.fields_label.pack(anchor=NW, fill=X, padx=5, pady=5)
-
-        self.effective_temp_checkbutton.grid(row=1, column=3)
-        self.build_graphs_button.grid(row=2, column=0)
+        self.effective_temp_checkbutton.grid(row=2, column=0, columnspan=2)
+        self.build_graphs_button.grid(row=2, column=2)
 
         if temp_humidity_in_data(list(self.data['data']['fields'].keys())):
             self.effective_temp_checkbutton.configure(state=NORMAL)
