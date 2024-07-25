@@ -5,7 +5,7 @@ from tkinter.messagebox import showerror
 from tkinter.filedialog import askopenfilename
 from tkinter import *
 from tkinter import ttk
-from tkcalendar.dateentry import DateEntry
+from tkcalendar import DateEntry
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
