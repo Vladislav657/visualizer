@@ -4,11 +4,11 @@ import re
 months = {1: 31, 2: 28, 3: 31, 4: 30, 5: 31, 6: 30, 7: 31, 8: 31, 9: 30, 10: 31, 11: 30, 12: 31}
 
 
-def is_leap_year(year):
+def is_leap_year(year: int) -> bool:
     return year % 4 == 0 and year % 100 != 0 or year % 400 == 0
 
 
-def is_valid_date(date):
+def is_valid_date(date: str) -> bool:
     pattern = re.compile(r'\d{4}-\d\d-\d\d')
     if not (pattern.match(date) and len(date) == 10):
         return False
